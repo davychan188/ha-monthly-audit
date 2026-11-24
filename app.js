@@ -1,28 +1,35 @@
-/* HA Monthly Audit — offline field records (original app). */
+/* HA Monthly Audit — list UI, 10 rows per page (original app). */
 (function () {
   "use strict";
 
+  var PAGE_SIZE = 10;
   var DB_NAME = "ha-monthly-audit";
   var DB_VERSION = 1;
   var STORE = "records";
   var PREFS_KEY = "ha-monthly-audit-prefs";
-  var SPLIT_MQ = window.matchMedia("(min-width: 700px)");
+  var APP_VER = "2";
+
+  var RECOMMENDATIONS = [
+    "Crown cleaning",
+    "Crown reduction",
+    "Crown thinning",
+    "Crown raising",
+    "Staking",
+    "Cabling",
+    "Cobra",
+    "Re-inspection within 6 months",
+    "Re-inspection within 3 months",
+    "Removal",
+    "Resis/tomo"
+  ];
 
   function $(id) { return document.getElementById(id); }
+
+  function pad2(n) { return String(n).padStart(2, "0"); }
 
   function todayISO() {
     var d = new Date();
     return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
-  }
-
-  function pad2(n) { return String(n).padStart(2, "0"); }
-
-  function formatDateHeading(iso) {
-    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-    if (!m) return iso;
-    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-    var weeks = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-    return m[1] + "年" + Number(m[2]) + "月" + Number(m[3]) + "日 " + weeks[d.getDay()];
   }
 
   function formatDateTimeHK(iso) {
@@ -32,12 +39,8 @@
     try {
       var parts = new Intl.DateTimeFormat("en-GB", {
         timeZone: "Asia/Hong_Kong",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
         hour12: false
       }).formatToParts(d);
       var map = {};
@@ -49,23 +52,59 @@
   }
 
   function uid() {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
     var buf = new Uint8Array(16);
     if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(buf);
     else for (var i = 0; i < 16; i++) buf[i] = Math.floor(Math.random() * 256);
     buf[6] = (buf[6] & 0x0f) | 0x40;
     buf[8] = (buf[8] & 0x3f) | 0x80;
-    var hex = Array.prototype.map.call(buf, function (b) {
-      return b.toString(16).padStart(2, "0");
-    }).join("");
+    var hex = Array.prototype.map.call(buf, function (b) { return b.toString(16).padStart(2, "0"); }).join("");
     return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
   }
 
   function norm(s) { return String(s || "").trim(); }
 
   function normTree(s) { return norm(s).replace(/\s+/g, "").toUpperCase(); }
+
+  function sameText(a, b) {
+    return norm(a).toLowerCase() === norm(b).toLowerCase();
+  }
+
+  function parseList(text) {
+    return String(text || "")
+      .split(/\s*[,;／]\s*|\n+/)
+      .map(function (x) { return x.trim(); })
+      .filter(Boolean);
+  }
+
+  function joinList(arr) {
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < arr.length; i++) {
+      var t = String(arr[i] || "").trim();
+      if (!t) continue;
+      var key = t.toLowerCase();
+      if (seen[key]) continue;
+      seen[key] = true;
+      out.push(t);
+    }
+    return out.join(", ");
+  }
+
+  function listHas(arr, name) {
+    for (var i = 0; i < arr.length; i++) if (sameText(arr[i], name)) return true;
+    return false;
+  }
+
+  function toggleList(arr, name, exactLabel) {
+    var found = -1;
+    for (var i = 0; i < arr.length; i++) {
+      if (sameText(arr[i], name)) { found = i; break; }
+    }
+    if (found >= 0) arr.splice(found, 1);
+    else arr.push(exactLabel || name);
+    return arr;
+  }
 
   function estateMeta(name) {
     for (var i = 0; i < ESTATES.length; i++) {
@@ -78,27 +117,6 @@
     return estateMeta(name).assignee || "";
   }
 
-  function parseDefects(text) {
-    return String(text || "")
-      .split(/\s*;\s*|\s*／\s*|\s*\/\s*|\n+/)
-      .map(function (x) { return x.trim(); })
-      .filter(Boolean);
-  }
-
-  function joinDefects(arr) {
-    var seen = {};
-    var out = [];
-    for (var i = 0; i < arr.length; i++) {
-      var t = String(arr[i] || "").trim();
-      if (!t) continue;
-      var key = t.toLowerCase();
-      if (seen[key]) continue;
-      seen[key] = true;
-      out.push(t);
-    }
-    return out.join("; ");
-  }
-
   function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
@@ -108,18 +126,12 @@
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();
-    setTimeout(function () {
-      a.remove();
-      URL.revokeObjectURL(url);
-    }, 2000);
+    setTimeout(function () { a.remove(); URL.revokeObjectURL(url); }, 2000);
   }
 
   function loadPrefs() {
-    try {
-      return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") || {};
-    } catch (e) {
-      return {};
-    }
+    try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") || {}; }
+    catch (e) { return {}; }
   }
 
   function savePrefs(p) {
@@ -157,8 +169,7 @@
   async function allRecords() {
     var db = await openDb();
     return new Promise(function (resolve, reject) {
-      var tx = db.transaction(STORE, "readonly");
-      var req = tx.objectStore(STORE).getAll();
+      var req = db.transaction(STORE, "readonly").objectStore(STORE).getAll();
       req.onsuccess = function () { resolve(req.result || []); };
       req.onerror = function () { reject(req.error); };
     });
@@ -186,14 +197,19 @@
   }
 
   var state = {
-    records: [],
-    view: "add",
-    editId: null,
-    estate: "",
+    rows: [],
+    page: 0,
+    query: "",
     estateAssigneeFilter: "",
-    pendingDup: null,
+    estateTargetId: null,
+    defectTargetId: null,
+    recTargetId: null,
+    numTargetId: null,
     confirmResolver: null,
-    deferredInstall: null
+    deferredInstall: null,
+    lastDate: "",
+    lastEstate: "",
+    saveTimer: 0
   };
 
   var toastTimer = 0;
@@ -205,14 +221,9 @@
     toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2200);
   }
 
-  function isSplit() { return SPLIT_MQ.matches; }
-
   function openDlg(el) {
-    if (typeof el.showModal === "function") {
-      if (!el.open) el.showModal();
-    } else {
-      el.setAttribute("open", "");
-    }
+    if (typeof el.showModal === "function") { if (!el.open) el.showModal(); }
+    else el.setAttribute("open", "");
   }
 
   function closeDlg(el) {
@@ -240,82 +251,360 @@
     if (fn) fn(!!yes);
   }
 
-  function setEstate(name) {
-    state.estate = name || "";
-    var label = $("estateLabel");
-    var who = $("estateWho");
-    if (!state.estate) {
-      label.textContent = "揀選屋邨";
-      label.classList.add("placeholder");
-      who.hidden = true;
-      who.textContent = "";
+  function emptyRow(seq) {
+    return {
+      id: uid(),
+      seq: seq || 0,
+      date: state.lastDate || todayISO(),
+      estate: state.lastEstate || "",
+      treeNo: "",
+      defect: "",
+      recommendation: "",
+      createdAt: "",
+      updatedAt: "",
+      persisted: false
+    };
+  }
+
+  function isFilled(row) {
+    return !!(norm(row.treeNo) || norm(row.defect) || norm(row.recommendation));
+  }
+
+  function toPersistable(row) {
+    var now = new Date().toISOString();
+    return {
+      id: row.id,
+      date: row.date || todayISO(),
+      estate: norm(row.estate),
+      treeNo: norm(row.treeNo),
+      defect: norm(row.defect),
+      recommendation: norm(row.recommendation),
+      seq: row.seq || 0,
+      createdAt: row.createdAt || now,
+      updatedAt: now
+    };
+  }
+
+  function fromStored(rec, index) {
+    return {
+      id: rec.id || uid(),
+      seq: typeof rec.seq === "number" ? rec.seq : index + 1,
+      date: rec.date || "",
+      estate: rec.estate || "",
+      treeNo: rec.treeNo || "",
+      defect: rec.defect || "",
+      recommendation: rec.recommendation || "",
+      createdAt: rec.createdAt || "",
+      updatedAt: rec.updatedAt || "",
+      persisted: true
+    };
+  }
+
+  function rememberFrom(row) {
+    if (row.date) state.lastDate = row.date;
+    if (norm(row.estate)) state.lastEstate = row.estate;
+    var p = loadPrefs();
+    p.lastDate = state.lastDate;
+    p.lastEstate = state.lastEstate;
+    savePrefs(p);
+  }
+
+  function applyLastToEmpty(row) {
+    if (isFilled(row)) return;
+    if (state.lastDate) row.date = state.lastDate;
+    else if (!row.date) row.date = todayISO();
+    if (state.lastEstate && !norm(row.estate)) row.estate = state.lastEstate;
+  }
+
+  function padToPageMultiple() {
+    if (!state.rows.length) {
+      for (var i = 0; i < PAGE_SIZE; i++) state.rows.push(emptyRow(i + 1));
       return;
     }
-    label.textContent = state.estate;
-    label.classList.remove("placeholder");
-    var a = assigneeOf(state.estate);
-    if (a) {
-      who.hidden = false;
-      who.textContent = a;
-    } else {
-      who.hidden = true;
-      who.textContent = "";
-    }
-    var prefs = loadPrefs();
-    prefs.lastEstate = state.estate;
-    savePrefs(prefs);
-  }
-
-  function selectedDefects() {
-    return parseDefects($("defectInput").value);
-  }
-
-  function defectSelected(name) {
-    var cur = selectedDefects();
-    var lower = name.toLowerCase();
-    for (var i = 0; i < cur.length; i++) {
-      if (cur[i].toLowerCase() === lower) return true;
-    }
-    return false;
-  }
-
-  function syncChips() {
-    var buttons = document.querySelectorAll("#defectChips button.chip");
-    for (var i = 0; i < buttons.length; i++) {
-      buttons[i].classList.toggle("on", defectSelected(buttons[i].getAttribute("data-defect")));
-    }
-    var choices = document.querySelectorAll("#defectChoices button");
-    for (var j = 0; j < choices.length; j++) {
-      choices[j].classList.toggle("on", defectSelected(choices[j].getAttribute("data-defect")));
+    var rem = state.rows.length % PAGE_SIZE;
+    if (rem === 0) return;
+    var base = maxSeq();
+    for (var j = 0; j < PAGE_SIZE - rem; j++) {
+      var r = emptyRow(base + j + 1);
+      applyLastToEmpty(r);
+      state.rows.push(r);
     }
   }
 
-  function toggleDefect(name) {
-    var cur = selectedDefects();
-    var lower = name.toLowerCase();
-    var found = -1;
-    for (var i = 0; i < cur.length; i++) {
-      if (cur[i].toLowerCase() === lower) { found = i; break; }
-    }
-    if (found >= 0) cur.splice(found, 1);
-    else cur.push(name);
-    $("defectInput").value = joinDefects(cur);
-    syncChips();
+  function maxSeq() {
+    var m = 0;
+    state.rows.forEach(function (r) { if (r.seq > m) m = r.seq; });
+    return m;
   }
 
-  function renderChips() {
-    var box = $("defectChips");
-    box.textContent = "";
-    DEFECT_CHIPS.forEach(function (name) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "chip";
-      b.setAttribute("data-defect", name);
-      b.textContent = name;
-      b.addEventListener("click", function () { toggleDefect(name); });
-      box.appendChild(b);
+  function filteredIndexes() {
+    var q = norm(state.query).toLowerCase();
+    var idxs = [];
+    for (var i = 0; i < state.rows.length; i++) {
+      var r = state.rows[i];
+      if (!q) { idxs.push(i); continue; }
+      if (!isFilled(r) && !norm(r.estate) && !norm(r.date)) continue;
+      var hay = [r.date, r.estate, r.treeNo, r.defect, r.recommendation, assigneeOf(r.estate)].join(" ").toLowerCase();
+      if (hay.indexOf(q) !== -1) idxs.push(i);
+    }
+    return idxs;
+  }
+
+  function isViewLimited() { return !!norm(state.query); }
+
+  function pageCount() {
+    return Math.max(1, Math.ceil(filteredIndexes().length / PAGE_SIZE));
+  }
+
+  function filledCount() {
+    var n = 0;
+    state.rows.forEach(function (r) { if (isFilled(r)) n += 1; });
+    return n;
+  }
+
+  function rowById(id) {
+    for (var i = 0; i < state.rows.length; i++) if (state.rows[i].id === id) return state.rows[i];
+    return null;
+  }
+
+  function scheduleSave(row) {
+    rememberFrom(row);
+    clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(function () { persistRow(row); }, 280);
+  }
+
+  async function persistRow(row) {
+    if (!isFilled(row)) {
+      if (row.persisted) {
+        await deleteRecord(row.id);
+        row.persisted = false;
+        row.createdAt = "";
+        row.updatedAt = "";
+        updateCount();
+      }
+      return;
+    }
+    var rec = toPersistable(row);
+    await putRecord(rec);
+    row.persisted = true;
+    row.createdAt = rec.createdAt;
+    row.updatedAt = rec.updatedAt;
+    updateCount();
+  }
+
+  async function persistRowNow(row) {
+    clearTimeout(state.saveTimer);
+    await persistRow(row);
+  }
+
+  async function flushSaves() {
+    clearTimeout(state.saveTimer);
+    var rows = state.rows.slice();
+    for (var i = 0; i < rows.length; i++) {
+      if (isFilled(rows[i]) || rows[i].persisted) await persistRow(rows[i]);
+    }
+  }
+
+  function updateCount() {
+    $("countBadge").textContent = "已記錄 " + filledCount() + " 項";
+  }
+
+  function render() {
+    if (state.page > pageCount() - 1) state.page = pageCount() - 1;
+    if (state.page < 0) state.page = 0;
+    $("pageLabel").textContent = "第 " + (state.page + 1) + " / " + pageCount() + " 頁";
+    $("btnPrev").disabled = state.page <= 0;
+    $("btnNext").disabled = isViewLimited() && state.page >= pageCount() - 1;
+    updateCount();
+
+    var indexes = filteredIndexes();
+    var start = state.page * PAGE_SIZE;
+    var slice = indexes.slice(start, start + PAGE_SIZE);
+    var tbody = $("tbody");
+    tbody.textContent = "";
+    for (var i = 0; i < PAGE_SIZE; i++) {
+      if (i < slice.length) tbody.appendChild(renderRow(state.rows[slice[i]], start + i + 1));
+    }
+  }
+
+  function renderRow(row, number) {
+    var tr = document.createElement("tr");
+    tr.dataset.id = row.id;
+    if (isFilled(row)) tr.classList.add("filled");
+
+    var tdNum = document.createElement("td");
+    tdNum.className = "num";
+    tdNum.textContent = String(number);
+    tr.appendChild(tdNum);
+
+    var tdDate = document.createElement("td");
+    tdDate.className = "date-col";
+    var date = document.createElement("input");
+    date.type = "date";
+    date.value = row.date || "";
+    date.setAttribute("aria-label", "日期");
+    date.addEventListener("focus", function () { hideKeypad(); setActive(tr); });
+    date.addEventListener("change", function () {
+      row.date = date.value;
+      rememberFrom(row);
+      scheduleSave(row);
+      maybeWarnDup(row);
     });
-    syncChips();
+    tdDate.appendChild(date);
+    tr.appendChild(tdDate);
+
+    var tdEst = document.createElement("td");
+    var estBtn = document.createElement("button");
+    estBtn.type = "button";
+    estBtn.className = "cell";
+    estBtn.setAttribute("aria-label", "屋邨");
+    var estVal = document.createElement("span");
+    estVal.className = "val" + (row.estate ? "" : " placeholder");
+    estVal.textContent = row.estate || "揀選屋邨";
+    estBtn.appendChild(estVal);
+    if (row.estate && assigneeOf(row.estate)) {
+      var who = document.createElement("span");
+      who.className = "who";
+      who.textContent = assigneeOf(row.estate);
+      estBtn.appendChild(who);
+    }
+    estBtn.addEventListener("click", function () {
+      hideKeypad();
+      setActive(tr);
+      openEstatePicker(row.id);
+    });
+    tdEst.appendChild(estBtn);
+    tr.appendChild(tdEst);
+
+    var tdTree = document.createElement("td");
+    tdTree.className = "tree-col";
+    var tree = document.createElement("input");
+    tree.type = "text";
+    tree.inputMode = "none";
+    tree.autocomplete = "off";
+    tree.spellcheck = false;
+    tree.setAttribute("aria-label", "號碼");
+    tree.value = row.treeNo || "";
+    tree.addEventListener("focus", function () {
+      setActive(tr);
+      openNumpad(row.id);
+    });
+    tree.addEventListener("input", function () {
+      row.treeNo = tree.value;
+      scheduleSave(row);
+    });
+    tree.addEventListener("blur", function () { maybeWarnDup(row); });
+    tdTree.appendChild(tree);
+    tr.appendChild(tdTree);
+
+    var tdDef = document.createElement("td");
+    tdDef.className = "def-cell";
+    tdDef.appendChild(valueCell(row.defect, "Defect", function () {
+      hideKeypad();
+      setActive(tr);
+      openDefectPicker(row.id);
+    }));
+    tr.appendChild(tdDef);
+
+    var tdRec = document.createElement("td");
+    tdRec.className = "rec-cell";
+    tdRec.appendChild(valueCell(row.recommendation, "Recommendation", function () {
+      hideKeypad();
+      setActive(tr);
+      openRecPicker(row.id);
+    }));
+    tr.appendChild(tdRec);
+
+    var tdAct = document.createElement("td");
+    tdAct.className = "act";
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "danger";
+    del.setAttribute("aria-label", "刪除呢行");
+    del.textContent = "×";
+    del.addEventListener("click", function () { askClearRow(row); });
+    tdAct.appendChild(del);
+    tr.appendChild(tdAct);
+
+    return tr;
+  }
+
+  function valueCell(text, label, onClick) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "cell";
+    b.setAttribute("aria-label", label);
+    var span = document.createElement("span");
+    span.className = "val" + (norm(text) ? "" : " placeholder");
+    span.textContent = norm(text) || "選";
+    b.appendChild(span);
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  function setActive(tr) {
+    var rows = $("tbody").querySelectorAll("tr");
+    for (var i = 0; i < rows.length; i++) rows[i].classList.toggle("active", rows[i] === tr);
+  }
+
+  function findDuplicate(row) {
+    if (!norm(row.estate) || !row.date || !norm(row.treeNo)) return null;
+    var key = normTree(row.treeNo);
+    for (var i = 0; i < state.rows.length; i++) {
+      var r = state.rows[i];
+      if (r.id === row.id) continue;
+      if (!isFilled(r)) continue;
+      if (r.estate === row.estate && r.date === row.date && normTree(r.treeNo) === key) return r;
+    }
+    return null;
+  }
+
+  var dupLock = false;
+  async function maybeWarnDup(row) {
+    if (dupLock) return;
+    var other = findDuplicate(row);
+    if (!other) return;
+    dupLock = true;
+    $("dupMsg").textContent = row.date + "　" + row.estate + "　" + row.treeNo + " 已有另一行記錄。";
+    openDlg($("dupDlg"));
+  }
+
+  function goPage(delta) {
+    hideKeypad();
+    flushSaves();
+    var pages = pageCount();
+    if (delta > 0 && state.page >= pages - 1) {
+      if (isViewLimited()) return;
+      var base = maxSeq();
+      for (var i = 0; i < PAGE_SIZE; i++) {
+        var r = emptyRow(base + i + 1);
+        applyLastToEmpty(r);
+        state.rows.push(r);
+      }
+      state.page += 1;
+      render();
+      var first = document.querySelector("#tbody tr input[aria-label='號碼']");
+      if (first) first.focus();
+      return;
+    }
+    state.page = Math.max(0, Math.min(pages - 1, state.page + delta));
+    render();
+  }
+
+  /* ---- Estate picker ---- */
+  function openEstatePicker(rowId) {
+    state.estateTargetId = rowId;
+    $("estateSearch").value = "";
+    renderEstateList();
+    openDlg($("estateDlg"));
+    setTimeout(function () { $("estateSearch").focus(); }, 50);
+  }
+
+  function setRowEstate(row, name) {
+    row.estate = name || "";
+    rememberFrom(row);
+    scheduleSave(row);
+    render();
   }
 
   function renderEstateList() {
@@ -324,19 +613,15 @@
     var list = $("estateList");
     list.textContent = "";
     var n = 0;
-    var exact = false;
+    var current = rowById(state.estateTargetId);
     ESTATES.forEach(function (e) {
       if (asg && e.assignee !== asg) return;
-      if (q) {
-        var hay = (e.name + " " + (e.assignee || "")).toLowerCase();
-        if (hay.indexOf(q) === -1) return;
-      }
-      if (e.name === q || e.name.toLowerCase() === q) exact = true;
+      if (q && (e.name + " " + (e.assignee || "")).toLowerCase().indexOf(q) === -1) return;
       n += 1;
       var li = document.createElement("li");
       var b = document.createElement("button");
       b.type = "button";
-      if (e.name === state.estate) b.className = "on";
+      if (current && current.estate === e.name) b.className = "on";
       var span = document.createElement("span");
       span.textContent = e.name;
       b.appendChild(span);
@@ -347,7 +632,7 @@
         b.appendChild(w);
       }
       b.addEventListener("click", function () {
-        setEstate(e.name);
+        if (current) setRowEstate(current, e.name);
         closeDlg($("estateDlg"));
       });
       li.appendChild(b);
@@ -360,7 +645,7 @@
       b2.type = "button";
       b2.textContent = "使用「" + typed + "」（名單以外）";
       b2.addEventListener("click", function () {
-        setEstate(typed);
+        if (current) setRowEstate(current, typed);
         closeDlg($("estateDlg"));
       });
       li2.appendChild(b2);
@@ -369,400 +654,302 @@
     $("estatePickCount").textContent = n + " / " + ESTATES.length + " 個屋邨";
   }
 
-  function renderDefectChoices() {
-    var q = norm($("defectSearch").value).toLowerCase();
-    var box = $("defectChoices");
+  /* ---- Defect picker ---- */
+  function openDefectPicker(rowId) {
+    state.defectTargetId = rowId;
+    $("defectSearch").value = "";
+    renderDefectPicker();
+    openDlg($("defectDlg"));
+  }
+
+  function currentDefects() {
+    var row = rowById(state.defectTargetId);
+    return parseList(row ? row.defect : "");
+  }
+
+  function setCurrentDefects(arr) {
+    var row = rowById(state.defectTargetId);
+    if (!row) return;
+    row.defect = joinList(arr);
+    rememberFrom(row);
+    scheduleSave(row);
+    renderDefectPicker();
+    var btn = document.querySelector('tr[data-id="' + row.id + '"] td.def-cell button .val');
+    if (btn) {
+      btn.textContent = row.defect || "選";
+      btn.classList.toggle("placeholder", !row.defect);
+    }
+  }
+
+  function renderDefectPicker() {
+    var selected = currentDefects();
+    var box = $("defectShortcuts");
     box.textContent = "";
+    DEFECT_SHORTCUTS.forEach(function (name) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = name;
+      if (listHas(selected, name)) b.className = "on";
+      b.addEventListener("click", function () {
+        setCurrentDefects(toggleList(currentDefects(), name, name));
+      });
+      box.appendChild(b);
+    });
+
+    var q = norm($("defectSearch").value);
+    var ql = q.toLowerCase();
+    var list = $("defectChoices");
+    list.textContent = "";
     var n = 0;
     DEFECTS.forEach(function (name) {
-      if (q && name.toLowerCase().indexOf(q) === -1) return;
+      if (ql && name.toLowerCase().indexOf(ql) === -1) return;
       n += 1;
       var li = document.createElement("li");
       var b = document.createElement("button");
       b.type = "button";
-      b.setAttribute("data-defect", name);
       b.textContent = name;
-      if (defectSelected(name)) b.className = "on";
-      b.addEventListener("click", function () { toggleDefect(name); });
+      if (listHas(selected, name)) b.className = "on";
+      b.addEventListener("click", function () {
+        setCurrentDefects(toggleList(currentDefects(), name, name));
+      });
       li.appendChild(b);
-      box.appendChild(li);
+      list.appendChild(li);
     });
-    if (!n) {
+    if (!n && q) {
       var li = document.createElement("li");
       var b = document.createElement("button");
       b.type = "button";
-      b.textContent = q ? "清單冇呢項，撳呢度加入「" + norm($("defectSearch").value) + "」" : "冇結果";
-      b.disabled = !q;
-      if (q) {
-        b.addEventListener("click", function () {
-          toggleDefect(norm($("defectSearch").value));
-          $("defectSearch").value = "";
-          renderDefectChoices();
-        });
-      }
-      li.appendChild(b);
-      box.appendChild(li);
-    }
-  }
-
-  function setView(name) {
-    state.view = name;
-    var split = isSplit();
-    $("viewAdd").hidden = !split && name !== "add";
-    $("viewRecords").hidden = !split && name !== "records";
-    $("tabAdd").classList.toggle("on", name === "add");
-    $("tabRecords").classList.toggle("on", name === "records");
-    $("tabAdd").setAttribute("aria-selected", name === "add" ? "true" : "false");
-    $("tabRecords").setAttribute("aria-selected", name === "records" ? "true" : "false");
-  }
-
-  function treeSortKey(s) {
-    var t = normTree(s);
-    var m = /^(.*?)(\d+)$/.exec(t);
-    if (m) return [m[1], Number(m[2])];
-    return [t, 0];
-  }
-
-  function compareTree(a, b) {
-    var ka = treeSortKey(a);
-    var kb = treeSortKey(b);
-    if (ka[0] < kb[0]) return -1;
-    if (ka[0] > kb[0]) return 1;
-    return ka[1] - kb[1];
-  }
-
-  function filteredRecords() {
-    var date = $("filterDate").value;
-    var estateQ = norm($("filterEstate").value).toLowerCase();
-    var asg = $("filterAssignee").value;
-    return state.records.filter(function (r) {
-      if (date && r.date !== date) return false;
-      if (estateQ && String(r.estate || "").toLowerCase().indexOf(estateQ) === -1) return false;
-      if (asg) {
-        var a = assigneeOf(r.estate) || "none";
-        if (asg === "none") {
-          if (a !== "none") return false;
-        } else if (a !== asg) return false;
-      }
-      return true;
-    });
-  }
-
-  function renderRecords() {
-    $("countBadge").textContent = state.records.length + " 項";
-    var list = $("recordsList");
-    var rows = filteredRecords().slice().sort(function (a, b) {
-      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-      if (a.estate !== b.estate) return a.estate < b.estate ? -1 : 1;
-      return compareTree(a.treeNo, b.treeNo);
-    });
-    var total = state.records.length;
-    $("filterSummary").textContent = rows.length === total
-      ? "共 " + total + " 項"
-      : "顯示 " + rows.length + " / 共 " + total + " 項";
-
-    if (!rows.length) {
-      list.innerHTML = isSplit()
-      ? '<div class="empty">未有記錄。請喺左邊表單儲存第一條，或改吓篩選條件。</div>'
-      : '<div class="empty">未有記錄。喺「新增」頁面儲存第一條，或改吓篩選條件。</div>';
-      return;
-    }
-
-    var groups = [];
-    var map = {};
-    rows.forEach(function (r) {
-      if (!map[r.date]) {
-        map[r.date] = { date: r.date, items: [] };
-        groups.push(map[r.date]);
-      }
-      map[r.date].items.push(r);
-    });
-
-    list.textContent = "";
-    groups.forEach(function (g) {
-      var sec = document.createElement("section");
-      sec.className = "date-group";
-      var head = document.createElement("div");
-      head.className = "date-head";
-      var h2 = document.createElement("h2");
-      h2.textContent = formatDateHeading(g.date);
-      var n = document.createElement("span");
-      n.className = "n";
-      n.textContent = g.items.length + " 項";
-      head.appendChild(h2);
-      head.appendChild(n);
-      sec.appendChild(head);
-      g.items.forEach(function (r) {
-        sec.appendChild(renderCard(r));
+      b.textContent = "加入自訂「" + q + "」";
+      b.addEventListener("click", function () {
+        setCurrentDefects(toggleList(currentDefects(), q, q));
+        $("defectSearch").value = "";
+        renderDefectPicker();
       });
-      list.appendChild(sec);
+      li.appendChild(b);
+      list.appendChild(li);
+    }
+  }
+
+  /* ---- Recommendation picker (multi-select checkboxes) ---- */
+  function openRecPicker(rowId) {
+    state.recTargetId = rowId;
+    renderRecPicker();
+    openDlg($("recDlg"));
+  }
+
+  function renderRecPicker() {
+    var row = rowById(state.recTargetId);
+    var selected = parseList(row ? row.recommendation : "");
+    var box = $("recChoices");
+    box.textContent = "";
+    RECOMMENDATIONS.forEach(function (d) {
+      var on = listHas(selected, d);
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = on ? "on" : "";
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      var mark = document.createElement("span");
+      mark.className = "rec-box";
+      mark.setAttribute("aria-hidden", "true");
+      var lab = document.createElement("span");
+      lab.textContent = d;
+      b.appendChild(mark);
+      b.appendChild(lab);
+      b.addEventListener("click", function () {
+        if (!row) return;
+        row.recommendation = joinList(toggleList(parseList(row.recommendation), d, d));
+        rememberFrom(row);
+        scheduleSave(row);
+        renderRecPicker();
+        var cell = document.querySelector('tr[data-id="' + row.id + '"] td.rec-cell button .val');
+        if (cell) {
+          cell.textContent = row.recommendation || "選";
+          cell.classList.toggle("placeholder", !row.recommendation);
+        }
+      });
+      box.appendChild(b);
     });
   }
 
-  function renderCard(r) {
-    var el = document.createElement("article");
-    el.className = "rec";
-    el.setAttribute("data-id", r.id);
-    var top = document.createElement("div");
-    top.className = "top";
-    var left = document.createElement("div");
-    var name = document.createElement("span");
-    name.className = "estate-name";
-    name.textContent = r.estate;
-    left.appendChild(name);
-    var a = assigneeOf(r.estate);
-    if (a) {
-      var who = document.createElement("span");
-      who.className = "who";
-      who.textContent = a;
-      left.appendChild(who);
-    }
-    var tree = document.createElement("div");
-    tree.className = "tree";
-    tree.textContent = r.treeNo;
-    top.appendChild(left);
-    top.appendChild(tree);
-    el.appendChild(top);
-    var def = document.createElement("div");
-    def.className = "defect";
-    def.textContent = r.defect || "（未填 defect）";
-    el.appendChild(def);
-    var actions = document.createElement("div");
-    actions.className = "actions";
-    var edit = document.createElement("button");
-    edit.type = "button";
-    edit.className = "secondary";
-    edit.textContent = "更改";
-    edit.addEventListener("click", function () { startEdit(r.id); });
-    var del = document.createElement("button");
-    del.type = "button";
-    del.className = "danger";
-    del.textContent = "刪除";
-    del.addEventListener("click", function () { askDelete(r.id); });
-    actions.appendChild(edit);
-    actions.appendChild(del);
-    el.appendChild(actions);
-    return el;
+  /* ---- Numpad ---- */
+  function openNumpad(rowId) {
+    state.numTargetId = rowId;
+    $("numpad").hidden = false;
+    document.body.classList.add("numpad-open");
+    var row = rowById(rowId);
+    $("numpadLabel").textContent = "號碼" + (row && row.estate ? " · " + row.estate : "");
+    renderNumpadKeys();
+    syncPrefixButtons();
   }
 
-  function fillFormFrom(rec) {
-    setEstate(rec.estate);
-    $("dateInput").value = rec.date;
-    $("treeInput").value = rec.treeNo;
-    $("defectInput").value = rec.defect;
-    syncChips();
+  function hideKeypad() {
+    state.numTargetId = null;
+    document.body.classList.remove("numpad-open");
+    $("numpad").hidden = true;
   }
 
-  function resetFormAfterSave() {
-    state.editId = null;
-    $("btnSave").textContent = "儲存記錄";
-    $("editActions").hidden = true;
-    $("formHint").textContent = "儲存後會保留屋邨同日期，方便繼續錄下一棵樹。";
-    $("treeInput").value = "";
-    $("defectInput").value = "";
-    syncChips();
+  function treeInput() {
+    if (!state.numTargetId) return null;
+    return document.querySelector('tr[data-id="' + state.numTargetId + '"] input[aria-label="號碼"]');
   }
 
-  function startEdit(id) {
-    var rec = state.records.filter(function (r) { return r.id === id; })[0];
-    if (!rec) return;
-    state.editId = id;
-    fillFormFrom(rec);
-    $("btnSave").textContent = "儲存更改";
-    $("editActions").hidden = false;
-    $("formHint").textContent = "正在更改呢條記錄。";
-    setView("add");
-    $("treeInput").focus();
-    if (!isSplit()) window.scrollTo(0, 0);
+  function treePrefix(v) {
+    var m = /^(AT|TG|T)/i.exec(String(v || ""));
+    return m ? m[1].toUpperCase() : "";
   }
 
-  function cancelEdit() {
-    state.editId = null;
-    $("btnSave").textContent = "儲存記錄";
-    $("editActions").hidden = true;
-    $("formHint").textContent = "儲存後會保留屋邨同日期，方便繼續錄下一棵樹。";
-    $("treeInput").value = "";
-    $("defectInput").value = "";
-    syncChips();
+  function applyTreeValue(v) {
+    var input = treeInput();
+    var row = rowById(state.numTargetId);
+    if (!input || !row) return;
+    input.value = v;
+    row.treeNo = v;
+    scheduleSave(row);
+    syncPrefixButtons();
   }
 
-  function findDuplicate(estate, date, treeNo, exceptId) {
-    var key = normTree(treeNo);
-    for (var i = 0; i < state.records.length; i++) {
-      var r = state.records[i];
-      if (exceptId && r.id === exceptId) continue;
-      if (r.estate === estate && r.date === date && normTree(r.treeNo) === key) return r;
-    }
-    return null;
+  function renderNumpadKeys() {
+    var grid = $("numpadGrid");
+    grid.textContent = "";
+    ["1","2","3","4","5","6","7","8","9","清空","0","⌫"].forEach(function (k) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = k;
+      if (k === "清空" || k === "⌫") b.className = "fn";
+      b.addEventListener("pointerdown", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        numpadPress(k);
+      });
+      grid.appendChild(b);
+    });
   }
 
-  function readForm() {
-    return {
-      estate: state.estate,
-      date: $("dateInput").value,
-      treeNo: norm($("treeInput").value),
-      defect: norm($("defectInput").value)
-    };
-  }
-
-  async function refresh() {
-    state.records = await allRecords();
-    renderRecords();
-  }
-
-  async function commitRecord(data, existing) {
-    var now = new Date().toISOString();
-    var rec;
-    if (existing) {
-      rec = {
-        id: existing.id,
-        estate: data.estate,
-        date: data.date,
-        treeNo: data.treeNo,
-        defect: data.defect,
-        createdAt: existing.createdAt || now,
-        updatedAt: now
-      };
-    } else if (state.editId) {
-      var cur = state.records.filter(function (r) { return r.id === state.editId; })[0];
-      rec = {
-        id: state.editId,
-        estate: data.estate,
-        date: data.date,
-        treeNo: data.treeNo,
-        defect: data.defect,
-        createdAt: cur && cur.createdAt ? cur.createdAt : now,
-        updatedAt: now
-      };
+  function numpadPress(key) {
+    var input = treeInput();
+    var row = rowById(state.numTargetId);
+    if (!input || !row) return;
+    var v = String(input.value || "");
+    if (key === "⌫") {
+      var p = treePrefix(v);
+      v = (p && v === p) ? "" : v.slice(0, -1);
+    } else if (key === "清空") {
+      v = treePrefix(v);
     } else {
-      rec = {
-        id: uid(),
-        estate: data.estate,
-        date: data.date,
-        treeNo: data.treeNo,
-        defect: data.defect,
-        createdAt: now,
-        updatedAt: now
-      };
+      v += key;
     }
-    await putRecord(rec);
-    await refresh();
-    var wasEdit = !!state.editId && (!existing || existing.id === state.editId);
-    resetFormAfterSave();
-    $("dateInput").value = data.date;
-    setEstate(data.estate);
-    toast((wasEdit || existing) ? "已更新：" + rec.estate + " " + rec.treeNo : "已儲存：" + rec.estate + " " + rec.treeNo);
-    $("treeInput").focus();
+    applyTreeValue(v);
   }
 
-  async function handleSave(evt) {
-    if (evt) evt.preventDefault();
-    var data = readForm();
-    if (!data.estate) {
-      toast("請先揀選屋邨");
-      openEstatePicker();
-      return;
-    }
-    if (!data.date) {
-      toast("請填日期");
-      $("dateInput").focus();
-      return;
-    }
-    if (!data.treeNo) {
-      toast("請填樹號碼");
-      $("treeInput").focus();
-      return;
-    }
-    if (!data.defect) {
-      var okEmpty = await confirmDialog("未填 Defect", "未填 defect，確定仍然儲存？", "仍然儲存", false);
-      if (!okEmpty) return;
-    }
-    var dup = findDuplicate(data.estate, data.date, data.treeNo, state.editId);
-    if (dup) {
-      state.pendingDup = { data: data, existing: dup };
-      $("dupMsg").textContent = data.date + "　" + data.estate + "　" + data.treeNo + " 已有記錄。";
-      $("dupOld").textContent = "現有 defect：" + (dup.defect || "（空）");
-      openDlg($("dupDlg"));
-      return;
-    }
-    await commitRecord(data, state.editId ? state.records.filter(function (r) { return r.id === state.editId; })[0] : null);
+  function applyPrefix(prefix) {
+    var input = treeInput();
+    if (!input) return;
+    var v = String(input.value || "").replace(/^(AT|TG|T)/i, "");
+    applyTreeValue(prefix + v);
   }
 
-  async function askDelete(id) {
-    var rec = state.records.filter(function (r) { return r.id === id; })[0];
-    if (!rec) return;
+  function syncPrefixButtons() {
+    var input = treeInput();
+    var cur = input ? treePrefix(input.value) : "";
+    var btns = $("numpadPrefixes").querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle("on", btns[i].getAttribute("data-prefix") === cur);
+    }
+  }
+
+  function numpadAdvance() {
+    var row = rowById(state.numTargetId);
+    if (row) {
+      persistRowNow(row);
+      maybeWarnDup(row);
+    }
+    var input = treeInput();
+    var tr = input && input.closest("tr");
+    var next = tr && tr.nextElementSibling;
+    if (next) {
+      var nxt = next.querySelector('input[aria-label="號碼"]');
+      if (nxt) { nxt.focus(); return; }
+    }
+    if (!isViewLimited() || state.page < pageCount() - 1) {
+      goPage(1);
+      var first = document.querySelector("#tbody tr input[aria-label='號碼']");
+      if (first) first.focus();
+    } else hideKeypad();
+  }
+
+  async function askClearRow(row) {
+    hideKeypad();
+    if (!isFilled(row) && !norm(row.estate)) {
+      row.date = state.lastDate || todayISO();
+      row.estate = state.lastEstate || "";
+      row.treeNo = "";
+      row.defect = "";
+      row.recommendation = "";
+      render();
+      return;
+    }
     var ok = await confirmDialog(
-      "刪除記錄",
-      "確定刪除 " + rec.estate + " " + rec.treeNo + " 呢條記錄？刪除後唔可復原。",
+      "刪除呢行？",
+      "確定清除 " + (row.estate || "（未選屋邨）") + " " + (row.treeNo || "（未有號碼）") + " 呢行？",
       "刪除",
       true
     );
     if (!ok) return;
-    await deleteRecord(id);
-    if (state.editId === id) cancelEdit();
-    await refresh();
-    toast("已刪除：" + rec.estate + " " + rec.treeNo);
-  }
-
-  function exportFilename(kind, rows) {
-    var today = todayISO();
-    if (kind === "all") return "HA-Monthly-Audit-" + today + ".xlsx";
-    var date = $("filterDate").value;
-    var estateQ = norm($("filterEstate").value);
-    var asg = $("filterAssignee").value;
-    var bits = ["HA-Monthly-Audit"];
-    if (date) bits.push(date);
-    if (estateQ) bits.push(estateQ);
-    if (asg && asg !== "none") bits.push(asg);
-    if (asg === "none") bits.push("未指定");
-    if (bits.length === 1) bits.push(today, "篩選");
-    if (!date && !estateQ && !asg) bits = ["HA-Monthly-Audit", today, "篩選"];
-    return bits.join("-") + ".xlsx";
+    if (row.persisted) await deleteRecord(row.id);
+    row.date = state.lastDate || todayISO();
+    row.estate = state.lastEstate || "";
+    row.treeNo = "";
+    row.defect = "";
+    row.recommendation = "";
+    row.createdAt = "";
+    row.updatedAt = "";
+    row.persisted = false;
+    render();
+    toast("已刪除呢行");
   }
 
   function exportXlsx(records, filename) {
-    if (typeof XLSX === "undefined") {
-      toast("Excel 元件未能載入");
-      return;
-    }
+    if (typeof XLSX === "undefined") { toast("Excel 元件未能載入"); return; }
     var rows = records.map(function (r) {
       return {
-        "屋邨": r.estate,
         "日期": r.date,
-        "樹號碼": r.treeNo,
+        "屋邨": r.estate,
+        "號碼": r.treeNo,
         "Defect": r.defect,
+        "Recommendation": r.recommendation || "",
         "負責人": assigneeOf(r.estate),
         "建立時間": formatDateTimeHK(r.createdAt),
         "更新時間": formatDateTimeHK(r.updatedAt)
       };
     });
     if (!rows.length) {
-      rows = [{ "屋邨": "", "日期": "", "樹號碼": "", "Defect": "", "負責人": "", "建立時間": "", "更新時間": "" }];
+      rows = [{ "日期": "", "屋邨": "", "號碼": "", "Defect": "", "Recommendation": "", "負責人": "", "建立時間": "", "更新時間": "" }];
     }
     var ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [
-      { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 48 },
+      { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 40 }, { wch: 36 },
       { wch: 10 }, { wch: 20 }, { wch: 20 }
     ];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "記錄");
     var out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    downloadBlob(
-      new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-      filename
-    );
-    toast("已匯出 " + (records.length || 0) + " 項");
+    downloadBlob(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
+    toast("已匯出 " + records.length + " 項");
+  }
+
+  function filledRowsFiltered() {
+    var idxs = filteredIndexes();
+    var out = [];
+    idxs.forEach(function (i) {
+      if (isFilled(state.rows[i])) out.push(state.rows[i]);
+    });
+    return out;
   }
 
   function backupJson() {
-    var payload = {
-      app: "ha-monthly-audit",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      records: state.records
-    };
-    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    downloadBlob(blob, "HA-Monthly-Audit-backup-" + todayISO() + ".json");
+    var records = state.rows.filter(isFilled).map(toPersistable);
+    var payload = { app: "ha-monthly-audit", version: 2, exportedAt: new Date().toISOString(), records: records };
+    downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), "HA-Monthly-Audit-backup-" + todayISO() + ".json");
     toast("已下載 JSON 備份");
   }
 
@@ -783,73 +970,93 @@
     var incoming = [];
     if (data && Array.isArray(data.records)) incoming = data.records;
     else if (Array.isArray(data)) incoming = data;
-    if (!incoming.length) {
-      toast("備份檔冇記錄");
-      return;
-    }
-    if (mode === "replace") {
-      await clearAllRecords();
-    }
-    var now = new Date().toISOString();
+    if (!incoming.length) { toast("備份檔冇記錄"); return; }
+    if (mode === "replace") await clearAllRecords();
     var existing = await allRecords();
     var byKey = {};
     existing.forEach(function (r) {
-      byKey[r.estate + "|" + r.date + "|" + normTree(r.treeNo)] = r;
+      byKey[(r.date || "") + "|" + (r.estate || "") + "|" + normTree(r.treeNo)] = r;
     });
     var byId = {};
     existing.forEach(function (r) { byId[r.id] = r; });
+    var now = new Date().toISOString();
     var n = 0;
+    var max = 0;
+    existing.forEach(function (r) { if (r.seq > max) max = r.seq || 0; });
     for (var i = 0; i < incoming.length; i++) {
       var src = incoming[i] || {};
       var rec = {
-        id: src.id && !byId[src.id] ? src.id : (mode === "replace" && src.id ? src.id : uid()),
-        estate: norm(src.estate),
+        id: src.id && !(mode === "merge" && byId[src.id]) ? (src.id || uid()) : uid(),
         date: norm(src.date),
+        estate: norm(src.estate),
         treeNo: norm(src.treeNo),
         defect: norm(src.defect),
+        recommendation: norm(src.recommendation),
+        seq: typeof src.seq === "number" ? src.seq : ++max,
         createdAt: src.createdAt || now,
         updatedAt: src.updatedAt || now
       };
-      if (!rec.estate || !rec.date || !rec.treeNo) continue;
       if (mode === "merge") {
-        var key = rec.estate + "|" + rec.date + "|" + normTree(rec.treeNo);
+        var key = rec.date + "|" + rec.estate + "|" + normTree(rec.treeNo);
         if (byKey[key]) {
           rec.id = byKey[key].id;
           rec.createdAt = byKey[key].createdAt || rec.createdAt;
+          rec.seq = byKey[key].seq || rec.seq;
           rec.updatedAt = now;
-        } else if (src.id && byId[src.id]) {
-          rec.id = src.id;
-        }
+        } else if (src.id && byId[src.id]) rec.id = src.id;
       }
+      if (!rec.date && !rec.estate && !rec.treeNo && !rec.defect && !rec.recommendation) continue;
+      if (!rec.treeNo && !rec.defect && !rec.recommendation) continue;
       await putRecord(rec);
       n += 1;
     }
-    await refresh();
+    await loadRows();
     toast("已還原 " + n + " 項（" + (mode === "replace" ? "取代" : "合併") + "）");
   }
 
-  function openEstatePicker() {
-    $("estateSearch").value = "";
-    renderEstateList();
-    openDlg($("estateDlg"));
-    setTimeout(function () { $("estateSearch").focus(); }, 50);
-  }
-
-  function applyPrefix(prefix) {
-    var input = $("treeInput");
-    var v = norm(input.value).replace(/^(AT|TG|T)/i, "");
-    input.value = prefix + v;
-    input.focus();
+  async function loadRows() {
+    var recs = await allRecords();
+    recs.sort(function (a, b) {
+      var sa = typeof a.seq === "number" ? a.seq : 0;
+      var sb = typeof b.seq === "number" ? b.seq : 0;
+      if (sa && sb && sa !== sb) return sa - sb;
+      var ca = a.createdAt || "";
+      var cb = b.createdAt || "";
+      if (ca !== cb) return ca < cb ? -1 : 1;
+      if (a.date !== b.date) return (a.date || "") < (b.date || "") ? -1 : 1;
+      return 0;
+    });
+    state.rows = recs.map(function (r, i) { return fromStored(r, i); });
+    padToPageMultiple();
+    if (!state.lastDate) {
+      var lastFilled = null;
+      for (var i = state.rows.length - 1; i >= 0; i--) {
+        if (isFilled(state.rows[i])) { lastFilled = state.rows[i]; break; }
+      }
+      if (lastFilled) rememberFrom(lastFilled);
+    }
+    state.rows.forEach(applyLastToEmpty);
+    render();
   }
 
   function bind() {
-    $("tabAdd").addEventListener("click", function () { setView("add"); });
-    $("tabRecords").addEventListener("click", function () { setView("records"); renderRecords(); });
+    $("btnPrev").addEventListener("click", function () { goPage(-1); });
+    $("btnNext").addEventListener("click", function () { goPage(1); });
+    $("q").addEventListener("input", function () {
+      state.query = $("q").value;
+      state.page = 0;
+      render();
+    });
+    $("btnExport").addEventListener("click", async function () {
+      await flushSaves();
+      var rows = filledRowsFiltered();
+      if (!rows.length) { toast("未有記錄可匯出"); return; }
+      var name = "HA-Monthly-Audit-" + todayISO() + (norm(state.query) ? "-篩選" : "") + ".xlsx";
+      exportXlsx(rows, name);
+    });
 
-    $("estateBtn").addEventListener("click", openEstatePicker);
     $("estateDlgClose").addEventListener("click", function () { closeDlg($("estateDlg")); });
     $("estateSearch").addEventListener("input", renderEstateList);
-
     var chips = $("estateAssigneeChips").querySelectorAll("button");
     for (var i = 0; i < chips.length; i++) {
       chips[i].addEventListener("click", function (ev) {
@@ -860,61 +1067,58 @@
       });
     }
 
-    $("btnToday").addEventListener("click", function () {
-      $("dateInput").value = todayISO();
+    $("defectDlgClose").addEventListener("click", function () { closeDlg($("defectDlg")); var r = rowById(state.defectTargetId); if (r) persistRowNow(r); render(); });
+    $("defectDone").addEventListener("click", function () { closeDlg($("defectDlg")); var r = rowById(state.defectTargetId); if (r) persistRowNow(r); render(); });
+    $("defectClear").addEventListener("click", function () { setCurrentDefects([]); });
+    $("defectSearch").addEventListener("input", renderDefectPicker);
+
+    $("recDlgClose").addEventListener("click", function () { closeDlg($("recDlg")); var r = rowById(state.recTargetId); if (r) persistRowNow(r); render(); });
+    $("recDone").addEventListener("click", function () { closeDlg($("recDlg")); var r = rowById(state.recTargetId); if (r) persistRowNow(r); render(); });
+    $("recClear").addEventListener("click", function () {
+      var row = rowById(state.recTargetId);
+      if (!row) return;
+      row.recommendation = "";
+      scheduleSave(row);
+      renderRecPicker();
     });
 
-    var prefixes = document.querySelectorAll(".prefix-bar [data-prefix]");
-    for (var p = 0; p < prefixes.length; p++) {
-      prefixes[p].addEventListener("click", function (ev) {
-        applyPrefix(ev.currentTarget.getAttribute("data-prefix"));
+    $("numpadPrefixes").querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("pointerdown", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        applyPrefix(b.getAttribute("data-prefix"));
       });
-    }
-
-    $("defectInput").addEventListener("input", syncChips);
-    $("btnAllDefects").addEventListener("click", function () {
-      $("defectSearch").value = "";
-      renderDefectChoices();
-      openDlg($("defectDlg"));
-      setTimeout(function () { $("defectSearch").focus(); }, 50);
     });
-    $("defectDlgClose").addEventListener("click", function () { closeDlg($("defectDlg")); });
-    $("defectSearch").addEventListener("input", renderDefectChoices);
-
-    $("entryForm").addEventListener("submit", handleSave);
-    $("btnCancelEdit").addEventListener("click", cancelEdit);
-    $("btnDeleteEdit").addEventListener("click", function () {
-      if (state.editId) askDelete(state.editId);
+    $("numpadDone").addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      var row = rowById(state.numTargetId);
+      hideKeypad();
+      if (row) { persistRowNow(row); maybeWarnDup(row); }
     });
-
-    $("filterDate").addEventListener("change", renderRecords);
-    $("filterEstate").addEventListener("input", renderRecords);
-    $("filterAssignee").addEventListener("change", renderRecords);
-    $("btnClearFilters").addEventListener("click", function () {
-      $("filterDate").value = "";
-      $("filterEstate").value = "";
-      $("filterAssignee").value = "";
-      renderRecords();
+    $("numpadClear").addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      numpadPress("清空");
+    });
+    $("numpadNext").addEventListener("pointerdown", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      numpadAdvance();
+    });
+    document.addEventListener("pointerdown", function (ev) {
+      if (!document.body.classList.contains("numpad-open")) return;
+      if (ev.target.closest("#numpad") || ev.target.closest('input[aria-label="號碼"]')) return;
+      hideKeypad();
     });
 
-    $("btnExportFiltered").addEventListener("click", function () {
-      var rows = filteredRecords();
-      if (!rows.length) { toast("目前篩選冇記錄可匯出"); return; }
-      exportXlsx(rows, exportFilename("filtered", rows));
-    });
-    $("btnExportAll").addEventListener("click", function () {
-      if (!state.records.length) { toast("未有記錄可匯出"); return; }
-      exportXlsx(state.records, exportFilename("all"));
-    });
-
-    $("btnMore").addEventListener("click", function () { openDlg($("moreDlg")); });
+    $("btnMore").addEventListener("click", function () { hideKeypad(); openDlg($("moreDlg")); });
     $("moreClose").addEventListener("click", function () { closeDlg($("moreDlg")); });
     $("btnBackup").addEventListener("click", function () {
-      if (!state.records.length) { toast("未有記錄可備份"); return; }
+      if (!filledCount()) { toast("未有記錄可備份"); return; }
       backupJson();
     });
-    $("btnRestore").addEventListener("click", function () { $("restoreFile").click(); });
     var pendingRestoreFile = null;
+    $("btnRestore").addEventListener("click", function () { $("restoreFile").click(); });
     $("restoreFile").addEventListener("change", function () {
       var file = $("restoreFile").files && $("restoreFile").files[0];
       $("restoreFile").value = "";
@@ -923,10 +1127,7 @@
       closeDlg($("moreDlg"));
       openDlg($("restoreDlg"));
     });
-    $("restoreCancel").addEventListener("click", function () {
-      pendingRestoreFile = null;
-      closeDlg($("restoreDlg"));
-    });
+    $("restoreCancel").addEventListener("click", function () { pendingRestoreFile = null; closeDlg($("restoreDlg")); });
     $("restoreMerge").addEventListener("click", async function () {
       var file = pendingRestoreFile;
       pendingRestoreFile = null;
@@ -936,64 +1137,31 @@
     $("restoreReplace").addEventListener("click", async function () {
       var file = pendingRestoreFile;
       closeDlg($("restoreDlg"));
-      var ok = await confirmDialog(
-        "全部取代？",
-        "現有記錄會被刪除，再用備份檔取代。確定繼續？",
-        "全部取代",
-        true
-      );
+      var ok = await confirmDialog("全部取代？", "現有記錄會被刪除，再用備份檔取代。確定繼續？", "全部取代", true);
       if (!ok) { pendingRestoreFile = null; return; }
       pendingRestoreFile = null;
       if (file) await restoreJson(file, "replace");
     });
-
     $("btnClearAll").addEventListener("click", async function () {
       closeDlg($("moreDlg"));
-      if (!state.records.length) { toast("未有記錄"); return; }
-      var ok = await confirmDialog(
-        "清除全部記錄",
-        "確定刪除全部 " + state.records.length + " 條記錄？刪除後唔可復原，請確定已匯出或備份。",
-        "全部刪除",
-        true
-      );
+      var n = filledCount();
+      if (!n) { toast("未有記錄"); return; }
+      var ok = await confirmDialog("清除全部記錄", "確定刪除全部 " + n + " 條記錄？刪除後唔可復原，請確定已匯出或備份。", "全部刪除", true);
       if (!ok) return;
       await clearAllRecords();
-      cancelEdit();
-      await refresh();
+      state.rows = [];
+      state.page = 0;
+      padToPageMultiple();
+      render();
       toast("已清除全部記錄");
     });
 
-    $("dupCancel").addEventListener("click", function () {
-      state.pendingDup = null;
-      closeDlg($("dupDlg"));
-    });
-    $("dupReplace").addEventListener("click", async function () {
-      var p = state.pendingDup;
-      state.pendingDup = null;
-      closeDlg($("dupDlg"));
-      if (p) await commitRecord(p.data, p.existing);
-    });
-    $("dupMerge").addEventListener("click", async function () {
-      var p = state.pendingDup;
-      state.pendingDup = null;
-      closeDlg($("dupDlg"));
-      if (!p) return;
-      p.data.defect = joinDefects(parseDefects(p.existing.defect).concat(parseDefects(p.data.defect)));
-      await commitRecord(p.data, p.existing);
-    });
+    $("dupCancel").addEventListener("click", function () { closeDlg($("dupDlg")); dupLock = false; });
+    $("dupOk").addEventListener("click", function () { closeDlg($("dupDlg")); dupLock = false; });
 
     $("confirmCancel").addEventListener("click", function () { finishConfirm(false); });
     $("confirmOk").addEventListener("click", function () { finishConfirm(true); });
-
-    document.querySelectorAll("dialog").forEach(function (dlg) {
-      dlg.addEventListener("cancel", function (ev) {
-        if (dlg.id === "confirmDlg") {
-          ev.preventDefault();
-          finishConfirm(false);
-        }
-        if (dlg.id === "dupDlg") state.pendingDup = null;
-      });
-    });
+    $("confirmDlg").addEventListener("cancel", function (ev) { ev.preventDefault(); finishConfirm(false); });
 
     $("btnInstall").addEventListener("click", function () {
       if (!state.deferredInstall) return;
@@ -1002,46 +1170,42 @@
       $("btnInstall").hidden = true;
       ev.prompt();
     });
-
     window.addEventListener("beforeinstallprompt", function (ev) {
       ev.preventDefault();
       state.deferredInstall = ev;
       $("btnInstall").hidden = false;
     });
-
-    if (typeof SPLIT_MQ.addEventListener === "function") {
-      SPLIT_MQ.addEventListener("change", function () { setView(state.view); });
-    } else if (typeof SPLIT_MQ.addListener === "function") {
-      SPLIT_MQ.addListener(function () { setView(state.view); });
-    }
   }
 
   function registerSW() {
-    if (!("serviceWorker" in navigator)) return;
-    if (location.protocol === "file:") return;
-    navigator.serviceWorker.register("./sw.js").catch(function () {});
+    if (!("serviceWorker" in navigator) || location.protocol === "file:") return;
+    navigator.serviceWorker.register("./sw.js?v=" + APP_VER).catch(function () {});
   }
 
   function requestPersist() {
-    if (!navigator.storage || typeof navigator.storage.persist !== "function") return;
-    navigator.storage.persist().catch(function () {});
+    if (navigator.storage && typeof navigator.storage.persist === "function") {
+      navigator.storage.persist().catch(function () {});
+    }
   }
 
   async function init() {
-    renderChips();
-    bind();
-    $("dateInput").value = todayISO();
     var prefs = loadPrefs();
-    if (prefs.lastEstate) setEstate(prefs.lastEstate);
-    setView("add");
+    state.lastDate = prefs.lastDate || todayISO();
+    state.lastEstate = prefs.lastEstate || "";
+    bind();
+    renderNumpadKeys();
     try {
       await openDb();
-      await refresh();
+      await loadRows();
     } catch (err) {
+      padToPageMultiple();
+      render();
       toast("無法開啟本機資料庫");
     }
     registerSW();
     requestPersist();
+    window.addEventListener("pagehide", function () { flushSaves(); });
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") flushSaves(); });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

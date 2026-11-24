@@ -9,112 +9,83 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#1b5e3b">
   <meta name="format-detection" content="telephone=no">
-  <meta name="description" content="屋邨樹木缺陷離線記錄，可按日期分類並匯出 Excel">
+  <meta name="description" content="屋邨樹木缺陷離線記錄，列表每頁 10 棵，可匯出 Excel">
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=2">
   <title>HA Monthly Audit</title>
 </head>
 <body>
   <header class="app">
     <div>
       <h1>HA Monthly Audit</h1>
-      <p class="sub">屋邨樹木缺陷記錄 · 離線使用</p>
+      <p class="sub">離線記錄 · 每頁 10 棵 · 號碼用九宮格 · Defect／Recommendation 可多選</p>
     </div>
     <div class="meta">
-      <span class="count" id="countBadge">0 項</span>
+      <span class="count" id="countBadge">已記錄 0 項</span>
       <button type="button" class="icon-btn" id="btnMore" aria-label="更多">⋯</button>
     </div>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="主畫面">
-    <button type="button" role="tab" id="tabAdd" class="on" aria-selected="true">新增</button>
-    <button type="button" role="tab" id="tabRecords" aria-selected="false">記錄</button>
-  </nav>
+  <div class="toolbar">
+    <div class="pager">
+      <button type="button" class="secondary" id="btnPrev">上一頁</button>
+      <span id="pageLabel">第 1 / 1 頁</span>
+      <button type="button" class="secondary" id="btnNext">下一頁</button>
+    </div>
+    <button type="button" id="btnExport">匯出 Excel</button>
+    <div class="search">
+      <label class="sr-only" for="q">搜尋</label>
+      <input id="q" type="search" placeholder="搜尋日期／屋邨／號碼／Defect／Recommendation" autocomplete="off">
+    </div>
+  </div>
 
   <main>
-    <section id="viewAdd" aria-labelledby="tabAdd">
-      <form class="card" id="entryForm" autocomplete="off">
-        <div class="field">
-          <label class="lab" for="estateBtn">屋邨</label>
-          <button type="button" class="estate-btn" id="estateBtn">
-            <span id="estateLabel" class="placeholder">揀選屋邨</span>
-            <span id="estateWho" class="who" hidden></span>
-            <span class="chev" aria-hidden="true">▾</span>
-          </button>
-        </div>
-
-        <div class="field">
-          <label class="lab" for="dateInput">日期</label>
-          <div class="row">
-            <input class="grow" id="dateInput" type="date" required>
-            <button type="button" class="secondary" id="btnToday">今日</button>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="lab" for="treeInput">樹號碼</label>
-          <input id="treeInput" type="text" inputmode="text" enterkeyhint="next" placeholder="例如 T12" autocapitalize="characters" autocomplete="off" spellcheck="false">
-          <div class="prefix-bar" role="group" aria-label="樹號碼前綴">
-            <button type="button" data-prefix="T">T</button>
-            <button type="button" data-prefix="AT">AT</button>
-            <button type="button" data-prefix="TG">TG</button>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="lab" for="defectInput">Defect</label>
-          <textarea id="defectInput" rows="3" placeholder="輸入或喺下面揀常用項目"></textarea>
-          <div class="chip-row" id="defectChips" aria-label="常用 defect"></div>
-          <button type="button" class="secondary" id="btnAllDefects" style="width:100%;margin-top:8px">搜尋全部缺陷清單</button>
-        </div>
-
-        <button type="submit" class="primary-save" id="btnSave">儲存記錄</button>
-        <div class="edit-actions" id="editActions" hidden>
-          <button type="button" class="secondary" id="btnCancelEdit">取消</button>
-          <button type="button" class="danger" id="btnDeleteEdit">刪除</button>
-        </div>
-        <p class="hint" id="formHint">儲存後會保留屋邨同日期，方便繼續錄下一棵樹。</p>
-      </form>
-    </section>
-
-    <section id="viewRecords" hidden aria-labelledby="tabRecords">
-      <div class="filters">
-        <div class="grid">
-          <div>
-            <label class="lab" for="filterDate">日期</label>
-            <input id="filterDate" type="date">
-          </div>
-          <div>
-            <label class="lab" for="filterAssignee">負責人</label>
-            <select id="filterAssignee" style="width:100%;min-height:48px;font-size:16px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;font-family:inherit">
-              <option value="">全部</option>
-              <option value="davy">davy</option>
-              <option value="Felix">Felix</option>
-              <option value="Lynn">Lynn</option>
-              <option value="none">未指定</option>
-            </select>
-          </div>
-          <div class="span2">
-            <label class="lab" for="filterEstate">屋邨</label>
-            <input id="filterEstate" type="search" placeholder="搜尋或篩選屋邨" enterkeyhint="search">
-          </div>
-        </div>
-        <div class="filter-meta">
-          <span id="filterSummary">共 0 項</span>
-          <button type="button" class="secondary" id="btnClearFilters" style="min-height:40px;padding:6px 10px">清除篩選</button>
-        </div>
-      </div>
-      <div class="export-bar">
-        <button type="button" class="secondary" id="btnExportFiltered">匯出目前</button>
-        <button type="button" id="btnExportAll">匯出全部</button>
-      </div>
-      <div id="recordsList"></div>
-    </section>
+    <div class="sheet-wrap" id="wrap">
+      <table class="sheet" id="table">
+        <colgroup>
+          <col class="c-num">
+          <col class="c-date">
+          <col class="c-estate">
+          <col class="c-tree">
+          <col class="c-def">
+          <col class="c-rec">
+          <col class="c-act">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>日期</th>
+            <th>屋邨</th>
+            <th>號碼</th>
+            <th>Defect</th>
+            <th>Recommendation</th>
+            <th class="act"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
   </main>
 
-  <!-- Estate picker -->
+  <div id="numpad" hidden>
+    <div class="numpad-panel">
+      <div class="numpad-bar">
+        <div class="lab" id="numpadLabel">號碼</div>
+        <button type="button" class="danger-lite" id="numpadClear">清除</button>
+        <button type="button" class="secondary" id="numpadNext">下一個</button>
+        <button type="button" id="numpadDone">完成</button>
+      </div>
+      <div class="prefixes" id="numpadPrefixes">
+        <button type="button" data-prefix="T">T</button>
+        <button type="button" data-prefix="AT">AT</button>
+        <button type="button" data-prefix="TG">TG</button>
+      </div>
+      <div class="numpad-grid" id="numpadGrid"></div>
+    </div>
+  </div>
+
   <dialog class="modal fullish" id="estateDlg" aria-labelledby="estateDlgTitle">
     <div class="dlg-head">
       <h3 id="estateDlgTitle">揀選屋邨</h3>
@@ -134,51 +105,39 @@
     </div>
   </dialog>
 
-  <!-- Full defect list -->
-  <dialog class="modal fullish" id="defectDlg" aria-labelledby="defectDlgTitle">
+  <dialog class="modal fullish defect-modal" id="defectDlg" aria-labelledby="defectDlgTitle">
     <div class="dlg-head">
-      <h3 id="defectDlgTitle">缺陷清單</h3>
+      <h3 id="defectDlgTitle">選擇 Defect</h3>
       <button type="button" class="secondary" id="defectDlgClose">完成</button>
     </div>
     <div class="dlg-body">
+      <p class="hint">快捷鍵可同時選多項。亦可搜尋清單或輸入自訂內容。</p>
+      <div class="shortcut-grid" id="defectShortcuts" role="group" aria-label="Defect 快捷鍵"></div>
       <label class="sr-only" for="defectSearch">搜尋缺陷</label>
-      <input id="defectSearch" type="search" placeholder="搜尋缺陷（英文）" enterkeyhint="search">
-      <p class="hint">可同時選多項，亦都可以自由輸入清單以外嘅內容。</p>
+      <input id="defectSearch" type="search" placeholder="搜尋其他缺陷，或輸入自訂" enterkeyhint="search">
       <ul class="defect-choices" id="defectChoices"></ul>
-    </div>
-  </dialog>
-
-  <!-- Duplicate -->
-  <dialog class="modal" id="dupDlg" aria-labelledby="dupTitle">
-    <div class="dlg-head"><h3 id="dupTitle">已有呢條記錄</h3></div>
-    <div class="dlg-body">
-      <div class="warn-box">
-        <div id="dupMsg"></div>
-        <div class="old" id="dupOld"></div>
+      <div class="dlg-actions sticky-actions">
+        <button type="button" class="secondary" id="defectClear">清空已選</button>
+        <button type="button" id="defectDone">完成</button>
       </div>
     </div>
-    <div class="dlg-actions">
-      <button type="button" class="secondary" id="dupCancel">取消</button>
-      <button type="button" class="secondary" id="dupMerge">加到現有</button>
-      <button type="button" id="dupReplace">更新 defect</button>
-    </div>
   </dialog>
 
-
-  <!-- Restore mode -->
-  <dialog class="modal" id="restoreDlg" aria-labelledby="restoreTitle">
-    <div class="dlg-head"><h3 id="restoreTitle">還原 JSON 備份</h3></div>
+  <dialog class="modal fullish rec-modal" id="recDlg" aria-labelledby="recDlgTitle">
+    <div class="dlg-head">
+      <h3 id="recDlgTitle">選擇 Recommendation</h3>
+      <button type="button" class="secondary" id="recDlgClose">完成</button>
+    </div>
     <div class="dlg-body">
-      <p id="restoreMsg" style="margin:0;font-size:15px">揀還原方式。合併會按同一屋邨＋日期＋樹號碼更新已有記錄，並加入新記錄；全部取代會先刪除而家所有記錄，再用備份檔取代。</p>
-    </div>
-    <div class="dlg-actions">
-      <button type="button" class="secondary" id="restoreCancel">取消</button>
-      <button type="button" class="secondary" id="restoreMerge">合併</button>
-      <button type="button" class="danger solid" id="restoreReplace">全部取代</button>
+      <p class="hint">可同時選多項，點方格勾選。</p>
+      <div class="rec-grid" id="recChoices"></div>
+      <div class="dlg-actions">
+        <button type="button" class="secondary" id="recClear">清空已選</button>
+        <button type="button" id="recDone">完成</button>
+      </div>
     </div>
   </dialog>
 
-  <!-- Confirm -->
   <dialog class="modal" id="confirmDlg" aria-labelledby="confirmTitle">
     <div class="dlg-head"><h3 id="confirmTitle">請確認</h3></div>
     <div class="dlg-body"><p id="confirmMsg" style="margin:0;font-size:15px"></p></div>
@@ -188,7 +147,19 @@
     </div>
   </dialog>
 
-  <!-- More -->
+  <dialog class="modal" id="dupDlg" aria-labelledby="dupTitle">
+    <div class="dlg-head"><h3 id="dupTitle">號碼重複</h3></div>
+    <div class="dlg-body">
+      <div class="warn-box">
+        <div id="dupMsg"></div>
+      </div>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" class="secondary" id="dupCancel">返回修改</button>
+      <button type="button" id="dupOk">仍然保留</button>
+    </div>
+  </dialog>
+
   <dialog class="modal" id="moreDlg" aria-labelledby="moreTitle">
     <div class="dlg-head">
       <h3 id="moreTitle">更多</h3>
@@ -201,17 +172,28 @@
         <button type="button" class="secondary" id="btnInstall" hidden>加入主畫面</button>
         <button type="button" class="danger" id="btnClearAll">清除全部記錄</button>
       </div>
-      <p class="hint" id="installHint">Android Chrome：打開瀏覽器選單，揀「加入主畫面」或「安裝應用程式」。第一次載入後，無網絡都可以繼續用。資料只存在呢部電話嘅瀏覽器，清網站資料就會冇，請定期匯出 Excel 或 JSON 備份。</p>
+      <p class="hint" id="installHint">Android Chrome：選單揀「加入主畫面」。iPad／iPhone 請用 Safari 分享按鈕，揀「加入主畫面」。第一次載入後可離線使用。資料只存在呢部裝置，請定期匯出 Excel 或 JSON 備份。</p>
+    </div>
+  </dialog>
+
+  <dialog class="modal" id="restoreDlg" aria-labelledby="restoreTitle">
+    <div class="dlg-head"><h3 id="restoreTitle">還原 JSON 備份</h3></div>
+    <div class="dlg-body">
+      <p id="restoreMsg" style="margin:0;font-size:15px">揀還原方式。合併會按同一日期＋屋邨＋號碼更新已有記錄，並加入新記錄；全部取代會先刪除而家所有記錄，再用備份檔取代。</p>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" class="secondary" id="restoreCancel">取消</button>
+      <button type="button" class="secondary" id="restoreMerge">合併</button>
+      <button type="button" class="danger solid" id="restoreReplace">全部取代</button>
     </div>
   </dialog>
 
   <input id="restoreFile" type="file" accept="application/json,.json" hidden>
-
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="./vendor/xlsx.full.min.js"></script>
-  <script src="./estates.js"></script>
-  <script src="./defects.js"></script>
-  <script src="./app.js"></script>
+  <script src="./vendor/xlsx.full.min.js?v=2"></script>
+  <script src="./estates.js?v=2"></script>
+  <script src="./defects.js?v=2"></script>
+  <script src="./app.js?v=2"></script>
 </body>
 </html>
