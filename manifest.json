@@ -1,0 +1,19 @@
+{
+  "name": "HA Monthly Audit",
+  "short_name": "HA Audit",
+  "description": "屋邨樹木缺陷離線記錄，可按日期分類並匯出 Excel",
+  "lang": "zh-HK",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1b5e3b",
+  "theme_color": "#1b5e3b",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
