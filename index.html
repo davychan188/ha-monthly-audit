@@ -13,13 +13,13 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=3">
+  <link rel="stylesheet" href="./styles.css?v=4">
   <title>HA Monthly Audit</title>
 </head>
 <body>
   <header class="app">
     <div>
-      <h1>HA Monthly Audit</h1>
+      <h1>HA Monthly Audit <span class="ver" id="appVerMark">v4</span></h1>
       <p class="sub">離線記錄 · 每頁 10 棵 · 號碼用九宮格 · Defect／Recommendation 可多選</p>
     </div>
     <div class="meta">
@@ -93,13 +93,7 @@
     </div>
     <div class="dlg-body">
       <label class="sr-only" for="estateSearch">搜尋屋邨</label>
-      <input id="estateSearch" type="search" placeholder="搜尋屋邨名稱" enterkeyhint="search">
-      <div class="filter-chips" id="estateAssigneeChips" role="group" aria-label="按負責人篩選">
-        <button type="button" data-assignee="" class="on">全部</button>
-        <button type="button" data-assignee="davy">davy</button>
-        <button type="button" data-assignee="Felix">Felix</button>
-        <button type="button" data-assignee="Lynn">Lynn</button>
-      </div>
+      <input id="estateSearch" type="search" placeholder="搜尋中文或英文屋邨名稱" enterkeyhint="search">
       <p class="hint" id="estatePickCount"></p>
       <ul class="picker-list" id="estateList"></ul>
     </div>
@@ -191,9 +185,9 @@
   <input id="restoreFile" type="file" accept="application/json,.json" hidden>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="./vendor/xlsx.full.min.js?v=3"></script>
-  <script src="./estates.js?v=3"></script>
-  <script src="./defects.js?v=3"></script>
-  <script src="./app.js?v=3"></script>
+  <script src="./vendor/xlsx.full.min.js?v=4"></script>
+  <script src="./estates.js?v=4"></script>
+  <script src="./defects.js?v=4"></script>
+  <script src="./app.js?v=4"></script>
 </body>
 </html>

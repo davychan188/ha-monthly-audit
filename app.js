@@ -7,7 +7,7 @@
   var DB_VERSION = 1;
   var STORE = "records";
   var PREFS_KEY = "ha-monthly-audit-prefs";
-  var APP_VER = "3";
+  var APP_VER = "4";
 
   var RECOMMENDATIONS = [
     "Crown cleaning",
@@ -110,11 +110,7 @@
     for (var i = 0; i < ESTATES.length; i++) {
       if (ESTATES[i].name === name) return ESTATES[i];
     }
-    return { name: name, assignee: null };
-  }
-
-  function assigneeOf(name) {
-    return estateMeta(name).assignee || "";
+    return { name: name };
   }
 
   function englishOf(name) {
@@ -153,7 +149,6 @@
     var q = norm(raw);
     if (!q) return true;
     if ((e.name || "").indexOf(q) !== -1) return true;
-    if ((e.assignee || "") && (e.assignee || "").toLowerCase() === q.toLowerCase()) return true;
     var nq = searchTokens(q);
     if (!nq.length) return true;
     return tokensMatch(searchTokens((e.name || "") + " " + (e.english || "")), nq);
@@ -242,7 +237,6 @@
     rows: [],
     page: 0,
     query: "",
-    estateAssigneeFilter: "",
     estateTargetId: null,
     defectTargetId: null,
     recTargetId: null,
@@ -382,7 +376,7 @@
       var r = state.rows[i];
       if (!q) { idxs.push(i); continue; }
       if (!isFilled(r) && !norm(r.estate) && !norm(r.date)) continue;
-      var meta = { name: r.estate, english: englishOf(r.estate), assignee: assigneeOf(r.estate) };
+      var meta = { name: r.estate, english: englishOf(r.estate) };
       var blob = [r.date, r.treeNo, r.defect, r.recommendation].join(" ").toLowerCase();
       if (blob.indexOf(q) !== -1 || estateMatchesQuery(meta, state.query)) idxs.push(i);
     }
@@ -510,12 +504,6 @@
       estNames.appendChild(estEn);
     }
     estBtn.appendChild(estNames);
-    if (row.estate && assigneeOf(row.estate)) {
-      var who = document.createElement("span");
-      who.className = "who";
-      who.textContent = assigneeOf(row.estate);
-      estBtn.appendChild(who);
-    }
     estBtn.addEventListener("click", function () {
       hideKeypad();
       setActive(tr);
@@ -656,15 +644,13 @@
   }
 
   function renderEstateList() {
-    var q = norm($("estateSearch").value).toLowerCase();
-    var asg = state.estateAssigneeFilter;
+    var typedQ = $("estateSearch").value;
     var list = $("estateList");
     list.textContent = "";
     var n = 0;
     var current = rowById(state.estateTargetId);
     ESTATES.forEach(function (e) {
-      if (asg && e.assignee !== asg) return;
-      if (q && !estateMatchesQuery(e, $("estateSearch").value)) return;
+      if (typedQ && !estateMatchesQuery(e, typedQ)) return;
       n += 1;
       var li = document.createElement("li");
       var b = document.createElement("button");
@@ -683,12 +669,6 @@
         names.appendChild(en);
       }
       b.appendChild(names);
-      if (e.assignee) {
-        var w = document.createElement("span");
-        w.className = "who";
-        w.textContent = e.assignee;
-        b.appendChild(w);
-      }
       b.addEventListener("click", function () {
         if (current) setRowEstate(current, e.name);
         closeDlg($("estateDlg"));
@@ -976,18 +956,17 @@
         "號碼": r.treeNo,
         "Defect": r.defect,
         "Recommendation": r.recommendation || "",
-        "負責人": assigneeOf(r.estate),
         "建立時間": formatDateTimeHK(r.createdAt),
         "更新時間": formatDateTimeHK(r.updatedAt)
       };
     });
     if (!rows.length) {
-      rows = [{ "日期": "", "屋邨": "", "屋邨英文": "", "號碼": "", "Defect": "", "Recommendation": "", "負責人": "", "建立時間": "", "更新時間": "" }];
+      rows = [{ "日期": "", "屋邨": "", "屋邨英文": "", "號碼": "", "Defect": "", "Recommendation": "", "建立時間": "", "更新時間": "" }];
     }
     var ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [
       { wch: 12 }, { wch: 16 }, { wch: 22 }, { wch: 12 }, { wch: 40 }, { wch: 36 },
-      { wch: 10 }, { wch: 20 }, { wch: 20 }
+      { wch: 20 }, { wch: 20 }
     ];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "記錄");
@@ -1116,15 +1095,6 @@
 
     $("estateDlgClose").addEventListener("click", function () { closeDlg($("estateDlg")); });
     $("estateSearch").addEventListener("input", renderEstateList);
-    var chips = $("estateAssigneeChips").querySelectorAll("button");
-    for (var i = 0; i < chips.length; i++) {
-      chips[i].addEventListener("click", function (ev) {
-        var btn = ev.currentTarget;
-        state.estateAssigneeFilter = btn.getAttribute("data-assignee") || "";
-        for (var j = 0; j < chips.length; j++) chips[j].classList.toggle("on", chips[j] === btn);
-        renderEstateList();
-      });
-    }
 
     $("defectDlgClose").addEventListener("click", function () { closeDlg($("defectDlg")); var r = rowById(state.defectTargetId); if (r) persistRowNow(r); render(); });
     $("defectDone").addEventListener("click", function () { closeDlg($("defectDlg")); var r = rowById(state.defectTargetId); if (r) persistRowNow(r); render(); });
@@ -1247,7 +1217,13 @@
     }
   }
 
+  function paintVersion() {
+    var el = $("appVerMark");
+    if (el) el.textContent = "v" + APP_VER;
+  }
+
   async function init() {
+    paintVersion();
     var prefs = loadPrefs();
     state.lastEstate = prefs.lastEstate || "";
     bind();

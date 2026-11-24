@@ -6,7 +6,7 @@
 
 建議用 HTTPS 網站（GitHub Pages）：
 
-[https://davychan188.github.io/ha-monthly-audit/?v=3](https://davychan188.github.io/ha-monthly-audit/?v=3)
+[https://davychan188.github.io/ha-monthly-audit/?v=4](https://davychan188.github.io/ha-monthly-audit/?v=4)
 
 本地測試可喺呢個資料夾執行：
 
@@ -14,7 +14,7 @@
 python3 -m http.server 8080
 ```
 
-然後用 Chrome 或 Safari 打開 `http://本機或伺服器位址:8080/?v=3`。Service Worker 同「加入主畫面」喺 `file://` 唔會生效。
+然後用 Chrome 或 Safari 打開 `http://本機或伺服器位址:8080/?v=4`。Service Worker 同「加入主畫面」喺 `file://` 唔會生效。
 
 ## 加入主畫面
 
@@ -36,7 +36,7 @@ python3 -m http.server 8080
 
 若要用 Apple Pencil 喺欄位手寫，請喺「設定 > Apple Pencil」開啟 **Scribble（隨手寫）**。
 
-如果主畫面開住嘅仍係舊版，請用帶 `?v=3` 嘅連結再開一次，或喺 Safari／Chrome 重新載入後再加入主畫面。
+畫面標題旁邊會顯示目前版本（例如 v4）。如果主畫面開住嘅仍係舊版，請用帶 `?v=4` 嘅連結再開一次，或喺 Safari／Chrome 重新載入後再加入主畫面。
 
 ## 點樣用（列表）
 
@@ -46,7 +46,7 @@ python3 -m http.server 8080
 
 1. **#** 行號
 2. **日期**：空白行唔會預先填日期，要自己揀。撳欄位會開系統日期選擇器（iOS Safari 同 Android Chrome 都可用）。已儲存記錄會保留原來嘅日期。
-3. **屋邨**：撳欄位可用中文或英文搜尋（例如 Ching Ho、tin yiu、hoi tai，有冇寫 Estate／Court 都得），並按負責人（davy / Felix / Lynn）過濾。名單有 75 個屋邨，清單會同時顯示官方中文名同英文名。記錄同匯出嘅「屋邨」欄仍然係中文官方名稱；Excel 另外有「屋邨英文」欄方便核對。負責人只係標記。
+3. **屋邨**：撳欄位可用中文或英文搜尋（例如 Ching Ho、tin yiu、hoi tai，有冇寫 Estate／Court 都得）。名單有 75 個屋邨，清單會同時顯示官方中文名同英文名。記錄同匯出嘅「屋邨」欄仍然係中文官方名稱；Excel 另外有「屋邨英文」欄方便核對。
 4. **號碼**：撳欄位會喺下面彈出九宮格數字鍵盤，可用 T／AT／TG 前綴，再撳「清除／下一個／完成」。
 5. **Defect**：撳欄位打開快捷鍵九宮格式 3 欄方格（可多選），亦可以搜尋完整清單或輸入自訂內容。多項用逗號加空格（`, `）連接。
 6. **Recommendation**：最後一欄。撳欄位打開方格清單，可同時勾選多項，選中內容會顯示喺格內。
@@ -75,7 +75,7 @@ python3 -m http.server 8080
 
 Crown cleaning、Crown reduction、Crown thinning、Crown raising、Staking、Cabling、Cobra、Re-inspection within 6 months、Re-inspection within 3 months、Removal、Resis/tomo。
 
-上方工具列可搜尋任何欄位，再匯出目前結果。撳「匯出 Excel」會下載 `.xlsx`，欄位包括：日期、屋邨、號碼、Defect、Recommendation、負責人、建立時間、更新時間。「更多」提供 JSON 備份／還原（合併或全部取代）。
+上方工具列可搜尋任何欄位，再匯出目前結果。撳「匯出 Excel」會下載 `.xlsx`，欄位包括：日期、屋邨、屋邨英文、號碼、Defect、Recommendation、建立時間、更新時間。「更多」提供 JSON 備份／還原（合併或全部取代）。舊備份入面如有已刪除嘅檢查人員欄位會被忽略，唔會再顯示。
 
 ## 離線同資料安全
 
