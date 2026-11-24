@@ -7,7 +7,7 @@
   var DB_VERSION = 1;
   var STORE = "records";
   var PREFS_KEY = "ha-monthly-audit-prefs";
-  var APP_VER = "2";
+  var APP_VER = "3";
 
   var RECOMMENDATIONS = [
     "Crown cleaning",
@@ -117,6 +117,48 @@
     return estateMeta(name).assignee || "";
   }
 
+  function englishOf(name) {
+    return estateMeta(name).english || "";
+  }
+
+  function normSearch(s) {
+    return String(s || "")
+      .toLowerCase()
+      .replace(/['’]/g, "")
+      .replace(/[()（）]/g, " ")
+      .replace(/\b(estate|court|factory|building)\b/g, " ")
+      .replace(/[^a-z0-9\u4e00-\u9fff]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function searchTokens(s) {
+    return normSearch(s).split(" ").filter(Boolean);
+  }
+
+  function isRomanToken(t) {
+    return /^(i|ii|iii|iv|v|vi|vii|viii|ix|x)$/.test(t);
+  }
+
+  function tokensMatch(hayTokens, qTokens) {
+    return qTokens.every(function (qt) {
+      return hayTokens.some(function (ht) {
+        if (isRomanToken(qt) || isRomanToken(ht)) return ht === qt;
+        return ht.indexOf(qt) === 0;
+      });
+    });
+  }
+
+  function estateMatchesQuery(e, raw) {
+    var q = norm(raw);
+    if (!q) return true;
+    if ((e.name || "").indexOf(q) !== -1) return true;
+    if ((e.assignee || "") && (e.assignee || "").toLowerCase() === q.toLowerCase()) return true;
+    var nq = searchTokens(q);
+    if (!nq.length) return true;
+    return tokensMatch(searchTokens((e.name || "") + " " + (e.english || "")), nq);
+  }
+
   function downloadBlob(blob, filename) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
@@ -207,7 +249,6 @@
     numTargetId: null,
     confirmResolver: null,
     deferredInstall: null,
-    lastDate: "",
     lastEstate: "",
     saveTimer: 0
   };
@@ -255,7 +296,7 @@
     return {
       id: uid(),
       seq: seq || 0,
-      date: state.lastDate || todayISO(),
+      date: "",
       estate: state.lastEstate || "",
       treeNo: "",
       defect: "",
@@ -274,7 +315,7 @@
     var now = new Date().toISOString();
     return {
       id: row.id,
-      date: row.date || todayISO(),
+      date: row.date || "",
       estate: norm(row.estate),
       treeNo: norm(row.treeNo),
       defect: norm(row.defect),
@@ -301,18 +342,15 @@
   }
 
   function rememberFrom(row) {
-    if (row.date) state.lastDate = row.date;
     if (norm(row.estate)) state.lastEstate = row.estate;
     var p = loadPrefs();
-    p.lastDate = state.lastDate;
     p.lastEstate = state.lastEstate;
     savePrefs(p);
   }
 
   function applyLastToEmpty(row) {
     if (isFilled(row)) return;
-    if (state.lastDate) row.date = state.lastDate;
-    else if (!row.date) row.date = todayISO();
+    /* 日期唔預先填；只可帶入上次屋邨。 */
     if (state.lastEstate && !norm(row.estate)) row.estate = state.lastEstate;
   }
 
@@ -344,8 +382,9 @@
       var r = state.rows[i];
       if (!q) { idxs.push(i); continue; }
       if (!isFilled(r) && !norm(r.estate) && !norm(r.date)) continue;
-      var hay = [r.date, r.estate, r.treeNo, r.defect, r.recommendation, assigneeOf(r.estate)].join(" ").toLowerCase();
-      if (hay.indexOf(q) !== -1) idxs.push(i);
+      var meta = { name: r.estate, english: englishOf(r.estate), assignee: assigneeOf(r.estate) };
+      var blob = [r.date, r.treeNo, r.defect, r.recommendation].join(" ").toLowerCase();
+      if (blob.indexOf(q) !== -1 || estateMatchesQuery(meta, state.query)) idxs.push(i);
     }
     return idxs;
   }
@@ -458,10 +497,19 @@
     estBtn.type = "button";
     estBtn.className = "cell";
     estBtn.setAttribute("aria-label", "屋邨");
+    var estNames = document.createElement("span");
+    estNames.className = "names";
     var estVal = document.createElement("span");
     estVal.className = "val" + (row.estate ? "" : " placeholder");
     estVal.textContent = row.estate || "揀選屋邨";
-    estBtn.appendChild(estVal);
+    estNames.appendChild(estVal);
+    if (row.estate && englishOf(row.estate)) {
+      var estEn = document.createElement("span");
+      estEn.className = "en";
+      estEn.textContent = englishOf(row.estate);
+      estNames.appendChild(estEn);
+    }
+    estBtn.appendChild(estNames);
     if (row.estate && assigneeOf(row.estate)) {
       var who = document.createElement("span");
       who.className = "who";
@@ -616,15 +664,25 @@
     var current = rowById(state.estateTargetId);
     ESTATES.forEach(function (e) {
       if (asg && e.assignee !== asg) return;
-      if (q && (e.name + " " + (e.assignee || "")).toLowerCase().indexOf(q) === -1) return;
+      if (q && !estateMatchesQuery(e, $("estateSearch").value)) return;
       n += 1;
       var li = document.createElement("li");
       var b = document.createElement("button");
       b.type = "button";
       if (current && current.estate === e.name) b.className = "on";
-      var span = document.createElement("span");
-      span.textContent = e.name;
-      b.appendChild(span);
+      var names = document.createElement("span");
+      names.className = "names";
+      var zh = document.createElement("span");
+      zh.className = "zh";
+      zh.textContent = e.name;
+      names.appendChild(zh);
+      if (e.english) {
+        var en = document.createElement("span");
+        en.className = "en";
+        en.textContent = e.english;
+        names.appendChild(en);
+      }
+      b.appendChild(names);
       if (e.assignee) {
         var w = document.createElement("span");
         w.className = "who";
@@ -880,7 +938,7 @@
   async function askClearRow(row) {
     hideKeypad();
     if (!isFilled(row) && !norm(row.estate)) {
-      row.date = state.lastDate || todayISO();
+      row.date = "";
       row.estate = state.lastEstate || "";
       row.treeNo = "";
       row.defect = "";
@@ -896,7 +954,7 @@
     );
     if (!ok) return;
     if (row.persisted) await deleteRecord(row.id);
-    row.date = state.lastDate || todayISO();
+    row.date = "";
     row.estate = state.lastEstate || "";
     row.treeNo = "";
     row.defect = "";
@@ -914,6 +972,7 @@
       return {
         "日期": r.date,
         "屋邨": r.estate,
+        "屋邨英文": englishOf(r.estate),
         "號碼": r.treeNo,
         "Defect": r.defect,
         "Recommendation": r.recommendation || "",
@@ -923,11 +982,11 @@
       };
     });
     if (!rows.length) {
-      rows = [{ "日期": "", "屋邨": "", "號碼": "", "Defect": "", "Recommendation": "", "負責人": "", "建立時間": "", "更新時間": "" }];
+      rows = [{ "日期": "", "屋邨": "", "屋邨英文": "", "號碼": "", "Defect": "", "Recommendation": "", "負責人": "", "建立時間": "", "更新時間": "" }];
     }
     var ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [
-      { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 40 }, { wch: 36 },
+      { wch: 12 }, { wch: 16 }, { wch: 22 }, { wch: 12 }, { wch: 40 }, { wch: 36 },
       { wch: 10 }, { wch: 20 }, { wch: 20 }
     ];
     var wb = XLSX.utils.book_new();
@@ -1028,7 +1087,7 @@
     });
     state.rows = recs.map(function (r, i) { return fromStored(r, i); });
     padToPageMultiple();
-    if (!state.lastDate) {
+    if (!state.lastEstate) {
       var lastFilled = null;
       for (var i = state.rows.length - 1; i >= 0; i--) {
         if (isFilled(state.rows[i])) { lastFilled = state.rows[i]; break; }
@@ -1190,7 +1249,6 @@
 
   async function init() {
     var prefs = loadPrefs();
-    state.lastDate = prefs.lastDate || todayISO();
     state.lastEstate = prefs.lastEstate || "";
     bind();
     renderNumpadKeys();

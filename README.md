@@ -6,7 +6,7 @@
 
 建議用 HTTPS 網站（GitHub Pages）：
 
-[https://davychan188.github.io/ha-monthly-audit/?v=2](https://davychan188.github.io/ha-monthly-audit/?v=2)
+[https://davychan188.github.io/ha-monthly-audit/?v=3](https://davychan188.github.io/ha-monthly-audit/?v=3)
 
 本地測試可喺呢個資料夾執行：
 
@@ -14,7 +14,7 @@
 python3 -m http.server 8080
 ```
 
-然後用 Chrome 或 Safari 打開 `http://本機或伺服器位址:8080/?v=2`。Service Worker 同「加入主畫面」喺 `file://` 唔會生效。
+然後用 Chrome 或 Safari 打開 `http://本機或伺服器位址:8080/?v=3`。Service Worker 同「加入主畫面」喺 `file://` 唔會生效。
 
 ## 加入主畫面
 
@@ -36,7 +36,7 @@ python3 -m http.server 8080
 
 若要用 Apple Pencil 喺欄位手寫，請喺「設定 > Apple Pencil」開啟 **Scribble（隨手寫）**。
 
-如果主畫面開住嘅仍係舊版，請用帶 `?v=2` 嘅連結再開一次，或喺 Safari／Chrome 重新載入後再加入主畫面。
+如果主畫面開住嘅仍係舊版，請用帶 `?v=3` 嘅連結再開一次，或喺 Safari／Chrome 重新載入後再加入主畫面。
 
 ## 點樣用（列表）
 
@@ -45,13 +45,13 @@ python3 -m http.server 8080
 欄位由左至右：
 
 1. **#** 行號
-2. **日期**：新空白行預設今日（或你上次用嘅日期）。撳欄位會開系統日期選擇器（iOS Safari 同 Android Chrome 都可用）。
-3. **屋邨**：撳欄位搜尋或按負責人（davy / Felix / Lynn）過濾，名單有 75 個屋邨。負責人只係標記，記錄本身係屋邨名稱。
+2. **日期**：空白行唔會預先填日期，要自己揀。撳欄位會開系統日期選擇器（iOS Safari 同 Android Chrome 都可用）。已儲存記錄會保留原來嘅日期。
+3. **屋邨**：撳欄位可用中文或英文搜尋（例如 Ching Ho、tin yiu、hoi tai，有冇寫 Estate／Court 都得），並按負責人（davy / Felix / Lynn）過濾。名單有 75 個屋邨，清單會同時顯示官方中文名同英文名。記錄同匯出嘅「屋邨」欄仍然係中文官方名稱；Excel 另外有「屋邨英文」欄方便核對。負責人只係標記。
 4. **號碼**：撳欄位會喺下面彈出九宮格數字鍵盤，可用 T／AT／TG 前綴，再撳「清除／下一個／完成」。
 5. **Defect**：撳欄位打開快捷鍵九宮格式 3 欄方格（可多選），亦可以搜尋完整清單或輸入自訂內容。多項用逗號加空格（`, `）連接。
 6. **Recommendation**：最後一欄。撳欄位打開方格清單，可同時勾選多項，選中內容會顯示喺格內。
 
-連續輸入時，會記住上次嘅日期同屋邨，並填入下一行空白格。
+連續輸入時，會記住上次揀嘅屋邨並填入下一行空白格；日期唔會自動帶入，要每行自己揀。
 
 若同一日期、同一屋邨、同一號碼已有另一行，會提示你。刪除一行或清除全部前會再確認。
 

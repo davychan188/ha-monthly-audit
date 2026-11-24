@@ -570,3 +570,25 @@ body.numpad-open .toast { bottom: 300px; }
   button:active:not(:disabled) { transform: none; }
   .toast { transition: none; }
 }
+
+.picker-list button .names,
+table.sheet td button.cell .names {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.picker-list button .zh { font-weight: 700; }
+.picker-list button .en,
+table.sheet td button.cell .en {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
