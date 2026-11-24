@@ -13,13 +13,13 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=5">
+  <link rel="stylesheet" href="./styles.css?v=6">
   <title>HA Monthly Audit</title>
 </head>
 <body>
   <header class="app">
     <div>
-      <h1>HA Monthly Audit <span class="ver" id="appVerMark">v5</span></h1>
+      <h1>HA Monthly Audit <button type="button" class="ver" id="appVerMark" aria-label="打開版本改版說明">v6 改版</button></h1>
       <p class="sub">離線記錄 · 每頁 10 棵 · 號碼用九宮格 · Defect／Recommendation 可多選</p>
     </div>
     <div class="meta">
@@ -170,6 +170,17 @@
     </div>
   </dialog>
 
+  <dialog class="modal changelog-modal" id="changelogDlg" aria-labelledby="changelogTitle">
+    <div class="dlg-head">
+      <h3 id="changelogTitle">改版說明</h3>
+      <button type="button" class="secondary" id="changelogClose">關閉</button>
+    </div>
+    <div class="dlg-body">
+      <p class="changelog-current" id="changelogCurrent">呢個係 version 6 改版</p>
+      <ol class="changelog-list" id="changelogList"></ol>
+    </div>
+  </dialog>
+
   <dialog class="modal" id="restoreDlg" aria-labelledby="restoreTitle">
     <div class="dlg-head"><h3 id="restoreTitle">還原 JSON 備份</h3></div>
     <div class="dlg-body">
@@ -185,9 +196,9 @@
   <input id="restoreFile" type="file" accept="application/json,.json" hidden>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="./vendor/xlsx.full.min.js?v=5"></script>
-  <script src="./estates.js?v=5"></script>
-  <script src="./defects.js?v=5"></script>
-  <script src="./app.js?v=5"></script>
+  <script src="./vendor/xlsx.full.min.js?v=6"></script>
+  <script src="./estates.js?v=6"></script>
+  <script src="./defects.js?v=6"></script>
+  <script src="./app.js?v=6"></script>
 </body>
 </html>

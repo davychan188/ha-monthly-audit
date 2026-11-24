@@ -4,7 +4,7 @@
   "description": "屋邨樹木缺陷離線記錄，列表每頁 10 棵，可匯出 Excel",
   "lang": "zh-HK",
   "dir": "ltr",
-  "start_url": "./?v=5",
+  "start_url": "./?v=6",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

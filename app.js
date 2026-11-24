@@ -7,7 +7,16 @@
   var DB_VERSION = 1;
   var STORE = "records";
   var PREFS_KEY = "ha-monthly-audit-prefs";
-  var APP_VER = "5";
+  var APP_VER = "6";
+
+  var CHANGELOG = [
+    { ver: "6", text: "加入呢份版本改版說明。" },
+    { ver: "5", text: "選完號碼後唔會自動彈去 Defect；「完成」只收起九宮格，「下一個」去下一行號碼。" },
+    { ver: "4", text: "標題顯示版本號；刪走 lynn、davy、Felix 負責人標記同篩選。" },
+    { ver: "3", text: "日期不再預先填上；屋邨加上官方英文名，打中文或英文都可以搜尋到。" },
+    { ver: "2", text: "改成列表，一頁 10 棵；欄位：日期、屋邨、號碼、Defect、Recommendation；號碼用九宮格；Defect 快捷鍵（dead branch, broken branch, hanger, leaning, BRRD, sparse foliage, dead tree, imbalanced crown, overgrown, Root plate movement, dead fronds）；Recommendation 選項。" },
+    { ver: "1", text: "初版離線記錄（屋邨、日期、樹號碼、defect），可匯出 Excel，Android / iPad 可加入主畫面離線用。" }
+  ];
 
   var RECOMMENDATIONS = [
     "Crown cleaning",
@@ -1209,6 +1218,10 @@
       }
     }, true);
 
+    $("appVerMark").addEventListener("click", function () { openChangelog(); });
+    $("changelogClose").addEventListener("click", function () { closeDlg($("changelogDlg")); });
+    $("changelogDlg").addEventListener("cancel", function (ev) { ev.preventDefault(); closeDlg($("changelogDlg")); });
+
     $("btnMore").addEventListener("click", function () { hideKeypad(); openDlg($("moreDlg")); });
     $("moreClose").addEventListener("click", function () { closeDlg($("moreDlg")); });
     $("btnBackup").addEventListener("click", function () {
@@ -1286,9 +1299,36 @@
     }
   }
 
+  function renderChangelog() {
+    var cur = $("changelogCurrent");
+    if (cur) cur.textContent = "呢個係 version " + APP_VER + " 改版";
+    var list = $("changelogList");
+    if (!list) return;
+    list.textContent = "";
+    CHANGELOG.forEach(function (item) {
+      var li = document.createElement("li");
+      if (String(item.ver) === String(APP_VER)) li.className = "current";
+      var v = document.createElement("strong");
+      v.className = "ver";
+      v.textContent = "v" + item.ver;
+      var p = document.createElement("p");
+      p.textContent = item.text;
+      li.appendChild(v);
+      li.appendChild(p);
+      list.appendChild(li);
+    });
+  }
+
   function paintVersion() {
     var el = $("appVerMark");
-    if (el) el.textContent = "v" + APP_VER;
+    if (el) el.textContent = "v" + APP_VER + " 改版";
+    renderChangelog();
+  }
+
+  function openChangelog() {
+    hideKeypad();
+    paintVersion();
+    openDlg($("changelogDlg"));
   }
 
   async function init() {

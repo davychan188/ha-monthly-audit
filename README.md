@@ -6,7 +6,7 @@
 
 建議用 HTTPS 網站（GitHub Pages）：
 
-[https://davychan188.github.io/ha-monthly-audit/?v=5](https://davychan188.github.io/ha-monthly-audit/?v=5)
+[https://davychan188.github.io/ha-monthly-audit/?v=6](https://davychan188.github.io/ha-monthly-audit/?v=6)
 
 本地測試可喺呢個資料夾執行：
 
@@ -14,7 +14,7 @@
 python3 -m http.server 8080
 ```
 
-然後用 Chrome 或 Safari 打開 `http://本機或伺服器位址:8080/?v=5`。Service Worker 同「加入主畫面」喺 `file://` 唔會生效。
+然後用 Chrome 或 Safari 打開 `http://本機或伺服器位址:8080/?v=6`。Service Worker 同「加入主畫面」喺 `file://` 唔會生效。
 
 ## 加入主畫面
 
@@ -36,7 +36,7 @@ python3 -m http.server 8080
 
 若要用 Apple Pencil 喺欄位手寫，請喺「設定 > Apple Pencil」開啟 **Scribble（隨手寫）**。
 
-畫面標題旁邊會顯示目前版本（例如 v5）。如果主畫面開住嘅仍係舊版，請用帶 `?v=5` 嘅連結再開一次，或喺 Safari／Chrome 重新載入後再加入主畫面。
+畫面標題旁邊會顯示目前版本（例如「v6 改版」）。撳呢個標記可打開改版說明，睇每個版本改咗咩。如果主畫面開住嘅仍係舊版，請用帶 `?v=6` 嘅連結再開一次，或喺 Safari／Chrome 重新載入後再加入主畫面。
 
 ## 點樣用（列表）
 
@@ -88,3 +88,14 @@ Crown cleaning、Crown reduction、Crown thinning、Crown raising、Staking、Ca
 
 - 屋邨後綴係「邨」，名單來自來源檔，唔好同「邸」混淆。來源檔入面「天耀」兩項已按「天瑞(一)邨／天瑞(二)邨」正規化為 **天耀(一)邨**、**天耀(二)邨**。
 - 應用程式唔鎖死月份，每行有自己嘅日期。
+
+## 改版紀錄
+
+標題旁邊嘅「v6 改版」可以打開應用程式入面嘅改版說明。呢個係 version 6 改版。
+
+- **v1**：初版離線記錄（屋邨、日期、樹號碼、defect），可匯出 Excel，Android / iPad 可加入主畫面離線用。
+- **v2**：改成列表，一頁 10 棵；欄位：日期、屋邨、號碼、Defect、Recommendation；號碼用九宮格；Defect 快捷鍵（dead branch, broken branch, hanger, leaning, BRRD, sparse foliage, dead tree, imbalanced crown, overgrown, Root plate movement, dead fronds）；Recommendation 選項。
+- **v3**：日期不再預先填上；屋邨加上官方英文名，打中文或英文都可以搜尋到。
+- **v4**：標題顯示版本號；刪走 lynn、davy、Felix 負責人標記同篩選。
+- **v5**：選完號碼後唔會自動彈去 Defect；「完成」只收起九宮格，「下一個」去下一行號碼。
+- **v6**：加入呢份版本改版說明。
