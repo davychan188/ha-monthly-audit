@@ -7,7 +7,7 @@
   var DB_VERSION = 1;
   var STORE = "records";
   var PREFS_KEY = "ha-monthly-audit-prefs";
-  var APP_VER = "4";
+  var APP_VER = "5";
 
   var RECOMMENDATIONS = [
     "Crown cleaning",
@@ -530,6 +530,13 @@
       scheduleSave(row);
     });
     tree.addEventListener("blur", function () { maybeWarnDup(row); });
+    tree.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        finishNumpadOnRow();
+      }
+    });
     tdTree.appendChild(tree);
     tr.appendChild(tdTree);
 
@@ -574,7 +581,14 @@
     span.className = "val" + (norm(text) ? "" : " placeholder");
     span.textContent = norm(text) || "選";
     b.appendChild(span);
-    b.addEventListener("click", onClick);
+    b.addEventListener("click", function (ev) {
+      if (blockSyntheticCellClick) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      }
+      onClick();
+    });
     return b;
   }
 
@@ -826,6 +840,32 @@
     $("numpad").hidden = true;
   }
 
+  /* 九宮格喺畫面底部。完成／下一個若喺 pointerdown 就收起鍵盤，
+   * 之後嘅 click 可能會打中下面嘅 Defect 格。用呢個開關擋呢下殘留 click；
+   * 之後用家自己再撳 Defect 會有新嘅 pointerdown，會取消阻擋。 */
+  var blockSyntheticCellClick = false;
+  var ghostClickTimer = 0;
+
+  function armGhostClickGuard() {
+    blockSyntheticCellClick = true;
+    if (ghostClickTimer) clearTimeout(ghostClickTimer);
+    ghostClickTimer = setTimeout(function () {
+      blockSyntheticCellClick = false;
+      ghostClickTimer = 0;
+    }, 400);
+  }
+
+  function finishNumpadOnRow() {
+    var row = rowById(state.numTargetId);
+    hideKeypad();
+    armGhostClickGuard();
+    if (!row) return;
+    persistRowNow(row);
+    maybeWarnDup(row);
+    var tr = document.querySelector('tr[data-id="' + row.id + '"]');
+    if (tr) setActive(tr);
+  }
+
   function treeInput() {
     if (!state.numTargetId) return null;
     return document.querySelector('tr[data-id="' + state.numTargetId + '"] input[aria-label="號碼"]');
@@ -906,13 +946,25 @@
     var next = tr && tr.nextElementSibling;
     if (next) {
       var nxt = next.querySelector('input[aria-label="號碼"]');
-      if (nxt) { nxt.focus(); return; }
+      if (nxt) {
+        armGhostClickGuard();
+        nxt.focus();
+        return;
+      }
     }
     if (!isViewLimited() || state.page < pageCount() - 1) {
+      armGhostClickGuard();
       goPage(1);
       var first = document.querySelector("#tbody tr input[aria-label='號碼']");
       if (first) first.focus();
-    } else hideKeypad();
+      return;
+    }
+    hideKeypad();
+    armGhostClickGuard();
+    if (row) {
+      var stay = document.querySelector('tr[data-id="' + row.id + '"]');
+      if (stay) setActive(stay);
+    }
   }
 
   async function askClearRow(row) {
@@ -1120,9 +1172,12 @@
     });
     $("numpadDone").addEventListener("pointerdown", function (ev) {
       ev.preventDefault();
-      var row = rowById(state.numTargetId);
-      hideKeypad();
-      if (row) { persistRowNow(row); maybeWarnDup(row); }
+      ev.stopPropagation();
+      finishNumpadOnRow();
+    });
+    $("numpadDone").addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
     });
     $("numpadClear").addEventListener("pointerdown", function (ev) {
       ev.preventDefault();
@@ -1134,11 +1189,25 @@
       ev.stopPropagation();
       numpadAdvance();
     });
+    $("numpadNext").addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+    });
     document.addEventListener("pointerdown", function (ev) {
+      if (blockSyntheticCellClick && ev.target.closest("table.sheet") && !ev.target.closest("#numpad")) {
+        blockSyntheticCellClick = false;
+      }
       if (!document.body.classList.contains("numpad-open")) return;
       if (ev.target.closest("#numpad") || ev.target.closest('input[aria-label="號碼"]')) return;
       hideKeypad();
     });
+    document.addEventListener("click", function (ev) {
+      if (!blockSyntheticCellClick) return;
+      if (ev.target.closest("table.sheet button, table.sheet input")) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    }, true);
 
     $("btnMore").addEventListener("click", function () { hideKeypad(); openDlg($("moreDlg")); });
     $("moreClose").addEventListener("click", function () { closeDlg($("moreDlg")); });

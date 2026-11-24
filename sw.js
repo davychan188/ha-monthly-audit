@@ -1,4 +1,4 @@
-const CACHE = "ha-monthly-audit-v4";
+const CACHE = "ha-monthly-audit-v5";
 const ASSETS = [
   "./",
   "./index.html",

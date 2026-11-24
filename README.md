@@ -6,7 +6,7 @@
 
 建議用 HTTPS 網站（GitHub Pages）：
 
-[https://davychan188.github.io/ha-monthly-audit/?v=4](https://davychan188.github.io/ha-monthly-audit/?v=4)
+[https://davychan188.github.io/ha-monthly-audit/?v=5](https://davychan188.github.io/ha-monthly-audit/?v=5)
 
 本地測試可喺呢個資料夾執行：
 
@@ -14,7 +14,7 @@
 python3 -m http.server 8080
 ```
 
-然後用 Chrome 或 Safari 打開 `http://本機或伺服器位址:8080/?v=4`。Service Worker 同「加入主畫面」喺 `file://` 唔會生效。
+然後用 Chrome 或 Safari 打開 `http://本機或伺服器位址:8080/?v=5`。Service Worker 同「加入主畫面」喺 `file://` 唔會生效。
 
 ## 加入主畫面
 
@@ -36,7 +36,7 @@ python3 -m http.server 8080
 
 若要用 Apple Pencil 喺欄位手寫，請喺「設定 > Apple Pencil」開啟 **Scribble（隨手寫）**。
 
-畫面標題旁邊會顯示目前版本（例如 v4）。如果主畫面開住嘅仍係舊版，請用帶 `?v=4` 嘅連結再開一次，或喺 Safari／Chrome 重新載入後再加入主畫面。
+畫面標題旁邊會顯示目前版本（例如 v5）。如果主畫面開住嘅仍係舊版，請用帶 `?v=5` 嘅連結再開一次，或喺 Safari／Chrome 重新載入後再加入主畫面。
 
 ## 點樣用（列表）
 
